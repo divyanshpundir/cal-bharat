@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "285993134231",
+    "project_id": "cal-bharat",
+    "storage_bucket": "cal-bharat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285993134231:android:22bcc9016f3a6b872661d2",
+        "android_client_info": {
+          "package_name": "com.example.cal_bharat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAMEB7VlWbc0pss-1OkifsxxNP8V0JE3kU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
