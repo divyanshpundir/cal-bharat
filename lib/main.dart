@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'models/nutrition_result.dart';
 import 'services/gemini_vision_service.dart';
@@ -69,11 +70,9 @@ class _AuthGateState extends State<AuthGate> {
     if (_seenOnboarding == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     if (!_seenOnboarding! && !kIsWeb) {
       return const OnboardingScreen();
     }
-
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -275,10 +274,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-// ─── INDIAN FOOD DATABASE (100+ dishes) ──────────────────────────────────────
+// ─── INDIAN FOOD DATABASE ─────────────────────────────────────────────────────
 
-final Map<String, Map<String, int>> indianFoodDB = {
-  // Dal & Legumes
+const Map<String, Map<String, int>> indianFoodDB = {
   'dal makhani': {'calories': 130, 'protein': 6, 'carbs': 14, 'fat': 7},
   'dal tadka': {'calories': 110, 'protein': 7, 'carbs': 15, 'fat': 4},
   'dal fry': {'calories': 105, 'protein': 6, 'carbs': 14, 'fat': 4},
@@ -292,8 +290,6 @@ final Map<String, Map<String, int>> indianFoodDB = {
   'sambar': {'calories': 80, 'protein': 4, 'carbs': 12, 'fat': 2},
   'kadhi': {'calories': 95, 'protein': 4, 'carbs': 10, 'fat': 5},
   'kadhi chawal': {'calories': 225, 'protein': 7, 'carbs': 38, 'fat': 5},
-
-  // Breads
   'roti': {'calories': 70, 'protein': 3, 'carbs': 15, 'fat': 1},
   'chapati': {'calories': 70, 'protein': 3, 'carbs': 15, 'fat': 1},
   'paratha': {'calories': 200, 'protein': 4, 'carbs': 30, 'fat': 8},
@@ -308,8 +304,6 @@ final Map<String, Map<String, int>> indianFoodDB = {
   'bhatura': {'calories': 200, 'protein': 4, 'carbs': 28, 'fat': 9},
   'missi roti': {'calories': 90, 'protein': 4, 'carbs': 16, 'fat': 2},
   'tandoori roti': {'calories': 80, 'protein': 3, 'carbs': 17, 'fat': 1},
-
-  // Rice
   'rice': {'calories': 130, 'protein': 3, 'carbs': 28, 'fat': 0},
   'jeera rice': {'calories': 150, 'protein': 3, 'carbs': 30, 'fat': 3},
   'biryani': {'calories': 290, 'protein': 10, 'carbs': 45, 'fat': 9},
@@ -319,8 +313,6 @@ final Map<String, Map<String, int>> indianFoodDB = {
   'pulao': {'calories': 180, 'protein': 4, 'carbs': 35, 'fat': 4},
   'khichdi': {'calories': 160, 'protein': 6, 'carbs': 28, 'fat': 3},
   'fried rice': {'calories': 210, 'protein': 5, 'carbs': 38, 'fat': 5},
-
-  // Paneer dishes
   'paneer butter masala': {'calories': 280, 'protein': 12, 'carbs': 15, 'fat': 20},
   'palak paneer': {'calories': 220, 'protein': 10, 'carbs': 12, 'fat': 15},
   'matar paneer': {'calories': 210, 'protein': 9, 'carbs': 18, 'fat': 12},
@@ -329,8 +321,6 @@ final Map<String, Map<String, int>> indianFoodDB = {
   'shahi paneer': {'calories': 310, 'protein': 12, 'carbs': 15, 'fat': 24},
   'kadai paneer': {'calories': 265, 'protein': 11, 'carbs': 14, 'fat': 19},
   'paneer': {'calories': 265, 'protein': 18, 'carbs': 4, 'fat': 20},
-
-  // Chicken dishes
   'butter chicken': {'calories': 250, 'protein': 18, 'carbs': 10, 'fat': 16},
   'chicken curry': {'calories': 220, 'protein': 20, 'carbs': 8, 'fat': 13},
   'chicken tikka masala': {'calories': 260, 'protein': 22, 'carbs': 10, 'fat': 16},
@@ -338,8 +328,6 @@ final Map<String, Map<String, int>> indianFoodDB = {
   'chicken tikka': {'calories': 200, 'protein': 24, 'carbs': 5, 'fat': 9},
   'chicken 65': {'calories': 280, 'protein': 22, 'carbs': 12, 'fat': 16},
   'chicken korma': {'calories': 290, 'protein': 20, 'carbs': 12, 'fat': 19},
-
-  // Vegetables
   'aloo gobi': {'calories': 130, 'protein': 4, 'carbs': 20, 'fat': 5},
   'aloo sabzi': {'calories': 110, 'protein': 3, 'carbs': 20, 'fat': 4},
   'aloo matar': {'calories': 135, 'protein': 4, 'carbs': 22, 'fat': 5},
@@ -348,68 +336,46 @@ final Map<String, Map<String, int>> indianFoodDB = {
   'sarson da saag': {'calories': 80, 'protein': 4, 'carbs': 10, 'fat': 3},
   'mixed veg': {'calories': 120, 'protein': 4, 'carbs': 16, 'fat': 5},
   'pav bhaji': {'calories': 280, 'protein': 7, 'carbs': 42, 'fat': 10},
-  'veg kurma': {'calories': 180, 'protein': 5, 'carbs': 18, 'fat': 10},
-
-  // South Indian
   'idli': {'calories': 58, 'protein': 2, 'carbs': 12, 'fat': 0},
   'dosa': {'calories': 120, 'protein': 3, 'carbs': 22, 'fat': 3},
   'masala dosa': {'calories': 215, 'protein': 5, 'carbs': 35, 'fat': 7},
   'uttapam': {'calories': 175, 'protein': 5, 'carbs': 28, 'fat': 5},
   'upma': {'calories': 150, 'protein': 4, 'carbs': 25, 'fat': 5},
   'vada': {'calories': 180, 'protein': 6, 'carbs': 20, 'fat': 9},
-  'sambhar vada': {'calories': 260, 'protein': 10, 'carbs': 32, 'fat': 11},
-  'coconut chutney': {'calories': 60, 'protein': 1, 'carbs': 4, 'fat': 5},
-
-  // Breakfast
   'poha': {'calories': 180, 'protein': 3, 'carbs': 35, 'fat': 4},
   'aloo poha': {'calories': 210, 'protein': 4, 'carbs': 38, 'fat': 5},
-  'upma': {'calories': 150, 'protein': 4, 'carbs': 25, 'fat': 5},
   'sabudana khichdi': {'calories': 220, 'protein': 3, 'carbs': 45, 'fat': 5},
-  'vermicelli upma': {'calories': 190, 'protein': 5, 'carbs': 32, 'fat': 5},
   'besan chilla': {'calories': 150, 'protein': 8, 'carbs': 18, 'fat': 5},
-  'moong chilla': {'calories': 130, 'protein': 9, 'carbs': 16, 'fat': 3},
-
-  // Snacks
   'samosa': {'calories': 150, 'protein': 3, 'carbs': 20, 'fat': 7},
   'pakora': {'calories': 160, 'protein': 4, 'carbs': 18, 'fat': 8},
   'aloo tikki': {'calories': 140, 'protein': 3, 'carbs': 22, 'fat': 5},
   'pani puri': {'calories': 200, 'protein': 3, 'carbs': 32, 'fat': 6},
   'bhel puri': {'calories': 180, 'protein': 4, 'carbs': 30, 'fat': 5},
-  'sev puri': {'calories': 210, 'protein': 4, 'carbs': 28, 'fat': 9},
   'kachori': {'calories': 190, 'protein': 4, 'carbs': 24, 'fat': 9},
-  'chakli': {'calories': 170, 'protein': 3, 'carbs': 22, 'fat': 8},
-  'mathri': {'calories': 180, 'protein': 3, 'carbs': 22, 'fat': 9},
-
-  // Drinks
   'lassi': {'calories': 150, 'protein': 6, 'carbs': 20, 'fat': 5},
   'sweet lassi': {'calories': 190, 'protein': 6, 'carbs': 28, 'fat': 5},
   'mango lassi': {'calories': 200, 'protein': 5, 'carbs': 32, 'fat': 5},
   'chai': {'calories': 50, 'protein': 2, 'carbs': 8, 'fat': 1},
   'masala chai': {'calories': 60, 'protein': 2, 'carbs': 9, 'fat': 2},
   'nimbu pani': {'calories': 30, 'protein': 0, 'carbs': 8, 'fat': 0},
-  'shikanji': {'calories': 45, 'protein': 0, 'carbs': 11, 'fat': 0},
-  'aam panna': {'calories': 80, 'protein': 0, 'carbs': 20, 'fat': 0},
-
-  // Dairy
   'curd': {'calories': 60, 'protein': 4, 'carbs': 5, 'fat': 3},
   'raita': {'calories': 70, 'protein': 4, 'carbs': 8, 'fat': 2},
-  'dahi': {'calories': 60, 'protein': 4, 'carbs': 5, 'fat': 3},
-  'paneer': {'calories': 265, 'protein': 18, 'carbs': 4, 'fat': 20},
   'ghee': {'calories': 112, 'protein': 0, 'carbs': 0, 'fat': 13},
-  'butter': {'calories': 100, 'protein': 0, 'carbs': 0, 'fat': 11},
-
-  // Sweets
   'gulab jamun': {'calories': 150, 'protein': 2, 'carbs': 28, 'fat': 4},
   'jalebi': {'calories': 150, 'protein': 1, 'carbs': 30, 'fat': 4},
   'halwa': {'calories': 200, 'protein': 3, 'carbs': 30, 'fat': 8},
   'kheer': {'calories': 180, 'protein': 5, 'carbs': 28, 'fat': 6},
   'gajar ka halwa': {'calories': 220, 'protein': 4, 'carbs': 32, 'fat': 9},
   'ladoo': {'calories': 170, 'protein': 3, 'carbs': 24, 'fat': 7},
-  'barfi': {'calories': 180, 'protein': 4, 'carbs': 26, 'fat': 7},
   'rasgulla': {'calories': 110, 'protein': 3, 'carbs': 22, 'fat': 1},
+  'egg': {'calories': 70, 'protein': 6, 'carbs': 0, 'fat': 5},
+  'omelette': {'calories': 150, 'protein': 10, 'carbs': 2, 'fat': 11},
+  'bread': {'calories': 80, 'protein': 3, 'carbs': 15, 'fat': 1},
+  'banana': {'calories': 90, 'protein': 1, 'carbs': 23, 'fat': 0},
+  'apple': {'calories': 52, 'protein': 0, 'carbs': 14, 'fat': 0},
+  'mango': {'calories': 60, 'protein': 1, 'carbs': 15, 'fat': 0},
 };
 
-// Serving sizes with multipliers
 const Map<String, double> servingSizes = {
   '100g': 1.0,
   '150g': 1.5,
@@ -436,6 +402,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _todayCalories = 0;
   int _goalCalories = 2000;
+  List<FlSpot> _weeklyData = [];
 
   webpick.WebPickedImage? _webPicked;
   NutritionResult? _result;
@@ -445,7 +412,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showManualSearch = false;
   String _selectedServing = '1 katori (150g)';
 
-  // Base values from AI (per 100g)
   int _baseCalories = 0;
   int _baseProtein = 0;
   int _baseCarbs = 0;
@@ -489,6 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _goalCalories = profile.data()!['calorie_goal']);
     }
     await _loadTodayCalories();
+    await _loadWeeklyData();
   }
 
   Future<void> _loadTodayCalories() async {
@@ -510,11 +477,36 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _todayCalories = total);
   }
 
+  Future<void> _loadWeeklyData() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final now = DateTime.now();
+    final List<FlSpot> spots = [];
+
+    for (int i = 6; i >= 0; i--) {
+      final day = now.subtract(Duration(days: i));
+      final start = Timestamp.fromDate(DateTime(day.year, day.month, day.day));
+      final end = Timestamp.fromDate(DateTime(day.year, day.month, day.day, 23, 59, 59));
+      final snap = await FirebaseFirestore.instance
+          .collection('meals')
+          .where('user_id', isEqualTo: uid)
+          .where('logged_at', isGreaterThanOrEqualTo: start)
+          .where('logged_at', isLessThanOrEqualTo: end)
+          .get();
+      int total = 0;
+      for (final doc in snap.docs) {
+        total += (doc['calories'] as num).toInt();
+      }
+      spots.add(FlSpot((6 - i).toDouble(), total.toDouble()));
+    }
+    if (mounted) setState(() => _weeklyData = spots);
+  }
+
   void _populateControllers(NutritionResult result) {
-   _baseCalories = (result.calories as num).toInt();
-_baseProtein  = (result.protein  as num).toInt();
-_baseCarbs    = (result.carbs    as num).toInt();
-_baseFat      = (result.fat      as num).toInt();
+   _baseCalories = result.calories.toInt();
+_baseProtein = result.protein.toInt();
+_baseCarbs = result.carbs.toInt();
+_baseFat = result.fat.toInt();
     _dishNameController.text = result.dishName;
     _updateServingCalculation();
   }
@@ -543,6 +535,7 @@ _baseFat      = (result.fat      as num).toInt();
         'logged_at': FieldValue.serverTimestamp(),
       });
       await _loadTodayCalories();
+      await _loadWeeklyData();
       if (mounted) {
         setState(() {
           _result = null;
@@ -590,7 +583,7 @@ _baseFat      = (result.fat      as num).toInt();
         return;
       }
     }
-    setState(() => _searchError = 'Not found. Try: dal, roti, paratha, biryani, paneer...');
+    setState(() => _searchError = 'Not found. Try: dal, roti, paratha, biryani...');
   }
 
   Future<void> _scanFood() async {
@@ -606,10 +599,7 @@ _baseFat      = (result.fat      as num).toInt();
       final res = await service.analyzeFoodImageBase64(
           base64Image: _webPicked!.base64, mimeType: _webPicked!.mimeType);
       if (mounted) {
-        setState(() {
-          _result = res;
-          _selectedServing = '1 katori (150g)';
-        });
+        setState(() { _result = res; _selectedServing = '1 katori (150g)'; });
         _populateControllers(res);
       }
     } catch (e) {
@@ -624,6 +614,13 @@ _baseFat      = (result.fat      as num).toInt();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  String _dayLabel(int index) {
+    final now = DateTime.now();
+    final day = now.subtract(Duration(days: 6 - index));
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[day.weekday - 1];
   }
 
   @override
@@ -717,6 +714,91 @@ _baseFat      = (result.fat      as num).toInt();
               ),
             ),
             const SizedBox(height: 16),
+
+            // Weekly chart
+            if (_weeklyData.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Weekly Progress',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                        Text('Last 7 days',
+                            style: TextStyle(fontSize: 12, color: Colors.black38, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 120,
+                      child: BarChart(
+                        BarChartData(
+                          alignment: BarChartAlignment.spaceAround,
+                          maxY: (_goalCalories * 1.5).toDouble(),
+                          barTouchData: BarTouchData(enabled: false),
+                          titlesData: FlTitlesData(
+                            show: true,
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                getTitlesWidget: (value, meta) => Text(
+                                  _dayLabel(value.toInt()),
+                                  style: const TextStyle(fontSize: 10, color: Colors.black38, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          ),
+                          gridData: const FlGridData(show: false),
+                          borderData: FlBorderData(show: false),
+                          barGroups: _weeklyData.map((spot) {
+                            final isToday = spot.x == 6;
+                            final isOver = spot.y > _goalCalories;
+                            return BarChartGroupData(
+                              x: spot.x.toInt(),
+                              barRods: [
+                                BarChartRodData(
+                                  toY: spot.y == 0 ? 0.5 : spot.y,
+                                  color: isOver
+                                      ? Colors.red.shade400
+                                      : isToday
+                                          ? const Color(0xFFFF7A00)
+                                          : const Color(0xFFFF7A00).withValues(alpha: 0.3),
+                                  width: 20,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                          // Goal line
+                          extraLinesData: ExtraLinesData(
+                            horizontalLines: [
+                              HorizontalLine(
+                                y: _goalCalories.toDouble(),
+                                color: Colors.black12,
+                                strokeWidth: 1,
+                                dashArray: [4, 4],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Action buttons
             Row(
@@ -819,9 +901,9 @@ _baseFat      = (result.fat      as num).toInt();
                   const SizedBox(height: 20, width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFFF7A00))),
                   const SizedBox(width: 12),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Analyzing your food...', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                    const Text('AI is identifying the dish', style: TextStyle(color: Colors.black38, fontSize: 12)),
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+                    Text('Analyzing your food...', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    Text('AI is identifying the dish', style: TextStyle(color: Colors.black38, fontSize: 12)),
                   ]),
                 ]),
               ),
@@ -847,7 +929,7 @@ _baseFat      = (result.fat      as num).toInt();
               const SizedBox(height: 12),
             ],
 
-            // Confirmation card with serving size
+            // Confirmation card
             if (_result != null) ...[
               Container(
                 padding: const EdgeInsets.all(16),
@@ -874,8 +956,6 @@ _baseFat      = (result.fat      as num).toInt();
                       ]),
                     ),
                     const SizedBox(height: 14),
-
-                    // Dish name
                     const Text('Dish Name',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black38)),
                     const SizedBox(height: 4),
@@ -891,8 +971,6 @@ _baseFat      = (result.fat      as num).toInt();
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // Serving size selector
                     const Text('Serving Size',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black38)),
                     const SizedBox(height: 6),
@@ -920,8 +998,6 @@ _baseFat      = (result.fat      as num).toInt();
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // Nutrition fields
                     Row(children: [
                       _NutritionField(label: 'Calories', unit: 'kcal', controller: _caloriesController, highlight: true),
                       const SizedBox(width: 8),
@@ -934,7 +1010,6 @@ _baseFat      = (result.fat      as num).toInt();
                       _NutritionField(label: 'Fat', unit: 'g', controller: _fatController),
                     ]),
                     const SizedBox(height: 14),
-
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -1111,11 +1186,8 @@ class _LogScreenState extends State<LogScreen> {
                             children: [
                               const Text('⚠️', style: TextStyle(fontSize: 40)),
                               const SizedBox(height: 8),
-                              Text('Error loading meals',
-                                  style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 4),
-                              Text(snapshot.error.toString(),
-                                  style: const TextStyle(color: Colors.black38, fontSize: 11),
+                              Text('Error: ${snapshot.error}',
+                                  style: const TextStyle(color: Colors.black38, fontSize: 12),
                                   textAlign: TextAlign.center),
                             ],
                           ),
@@ -1125,22 +1197,19 @@ class _LogScreenState extends State<LogScreen> {
                       if (docs.isEmpty) {
                         return Center(child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('🍽️', style: TextStyle(fontSize: 56)),
-                            const SizedBox(height: 12),
-                            const Text('No meals logged today',
+                          children: const [
+                            Text('🍽️', style: TextStyle(fontSize: 56)),
+                            SizedBox(height: 12),
+                            Text('No meals logged today',
                                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black54)),
-                            const SizedBox(height: 6),
-                            const Text('Scan your food to get started',
+                            SizedBox(height: 6),
+                            Text('Scan your food to get started',
                                 style: TextStyle(color: Colors.black38, fontSize: 13)),
                           ],
                         ));
                       }
 
-                      int totalCal = 0;
-                      int totalProtein = 0;
-                      int totalCarbs = 0;
-                      int totalFat = 0;
+                      int totalCal = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
                       for (final doc in docs) {
                         final d = doc.data() as Map<String, dynamic>;
                         totalCal += (d['calories'] as num? ?? 0).toInt();
@@ -1180,9 +1249,7 @@ class _LogScreenState extends State<LogScreen> {
                             itemBuilder: (context, i) {
                               final data = docs[i].data() as Map<String, dynamic>;
                               final ts = data['logged_at'] as Timestamp?;
-                              final time = ts != null
-                                  ? TimeOfDay.fromDateTime(ts.toDate()).format(context)
-                                  : '';
+                              final time = ts != null ? TimeOfDay.fromDateTime(ts.toDate()).format(context) : '';
                               final serving = data['serving'] as String? ?? '';
                               return Dismissible(
                                 key: Key(docs[i].id),
@@ -1197,10 +1264,7 @@ class _LogScreenState extends State<LogScreen> {
                                   child: const Icon(Icons.delete_outline, color: Colors.white),
                                 ),
                                 onDismissed: (_) async {
-                                  await FirebaseFirestore.instance
-                                      .collection('meals')
-                                      .doc(docs[i].id)
-                                      .delete();
+                                  await FirebaseFirestore.instance.collection('meals').doc(docs[i].id).delete();
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.all(14),
@@ -1231,8 +1295,7 @@ class _LogScreenState extends State<LogScreen> {
                                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                       Text('${data['calories']}',
                                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFFFF7A00))),
-                                      const Text('kcal',
-                                          style: TextStyle(color: Colors.black38, fontSize: 11)),
+                                      const Text('kcal', style: TextStyle(color: Colors.black38, fontSize: 11)),
                                     ]),
                                   ]),
                                 ),
