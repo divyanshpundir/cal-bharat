@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/nutrition_result.dart';
 import 'services/gemini_vision_service.dart';
@@ -19,7 +20,6 @@ void main() {
 
 class CalBharatApp extends StatelessWidget {
   const CalBharatApp({super.key});
-
   static const Color primary = Color(0xFFFF7A00);
   static const Color bg = Color(0xFFF8F9FA);
 
@@ -31,7 +31,6 @@ class CalBharatApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: bg,
-        fontFamily: 'SF Pro Display',
         colorScheme: ColorScheme.fromSeed(
           seedColor: primary,
           brightness: Brightness.light,
@@ -42,11 +41,39 @@ class CalBharatApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+// ─── AUTH GATE ────────────────────────────────────────────────────────────────
+
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool? _seenOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('seen_onboarding') ?? false;
+    setState(() => _seenOnboarding = seen);
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_seenOnboarding == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (!_seenOnboarding! && !kIsWeb) {
+      return const OnboardingScreen();
+    }
+
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -93,6 +120,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
   ];
 
+  Future<void> _finishOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('seen_onboarding', true);
+    if (mounted) {
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,24 +136,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Skip button
             Align(
               alignment: Alignment.topRight,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: _page < 2
                     ? TextButton(
-                        onPressed: () => _controller.animateToPage(2,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut),
+                        onPressed: _finishOnboarding,
                         child: const Text('Skip',
                             style: TextStyle(color: Colors.black45, fontWeight: FontWeight.w600)),
                       )
                     : const SizedBox(height: 40),
               ),
             ),
-
-            // Pages
             Expanded(
               child: PageView.builder(
                 controller: _controller,
@@ -133,24 +164,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Text(p['emoji']!, style: const TextStyle(fontSize: 80)),
                         const SizedBox(height: 32),
                         Text(p['title']!,
-                            style: const TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5),
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5),
                             textAlign: TextAlign.center),
                         const SizedBox(height: 12),
                         Text(p['subtitle']!,
-                            style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFFF7A00)),
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFFFF7A00)),
                             textAlign: TextAlign.center),
                         const SizedBox(height: 16),
                         Text(p['desc']!,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                color: Colors.black45,
-                                height: 1.5),
+                            style: const TextStyle(fontSize: 15, color: Colors.black45, height: 1.5),
                             textAlign: TextAlign.center),
                       ],
                     ),
@@ -158,8 +180,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 },
               ),
             ),
-
-            // Dots
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(3, (i) => AnimatedContainer(
@@ -174,8 +194,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               )),
             ),
             const SizedBox(height: 32),
-
-            // Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: SizedBox(
@@ -195,8 +213,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeOut);
                     } else {
-                      Navigator.pushReplacement(context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()));
+                      _finishOnboarding();
                     }
                   },
                   child: Text(_page < 2 ? 'Next →' : 'Get Started 🚀'),
@@ -258,41 +275,154 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-// ─── INDIAN FOOD DB ───────────────────────────────────────────────────────────
+// ─── INDIAN FOOD DATABASE (100+ dishes) ──────────────────────────────────────
 
-const Map<String, Map<String, int>> indianFoodDB = {
+final Map<String, Map<String, int>> indianFoodDB = {
+  // Dal & Legumes
   'dal makhani': {'calories': 130, 'protein': 6, 'carbs': 14, 'fat': 7},
+  'dal tadka': {'calories': 110, 'protein': 7, 'carbs': 15, 'fat': 4},
+  'dal fry': {'calories': 105, 'protein': 6, 'carbs': 14, 'fat': 4},
   'rajma': {'calories': 125, 'protein': 8, 'carbs': 20, 'fat': 2},
+  'rajma chawal': {'calories': 255, 'protein': 11, 'carbs': 48, 'fat': 2},
+  'chole': {'calories': 160, 'protein': 9, 'carbs': 25, 'fat': 4},
+  'chole bhature': {'calories': 450, 'protein': 12, 'carbs': 65, 'fat': 18},
+  'moong dal': {'calories': 90, 'protein': 7, 'carbs': 14, 'fat': 1},
+  'masoor dal': {'calories': 100, 'protein': 8, 'carbs': 16, 'fat': 1},
+  'chana masala': {'calories': 165, 'protein': 9, 'carbs': 26, 'fat': 4},
+  'sambar': {'calories': 80, 'protein': 4, 'carbs': 12, 'fat': 2},
+  'kadhi': {'calories': 95, 'protein': 4, 'carbs': 10, 'fat': 5},
+  'kadhi chawal': {'calories': 225, 'protein': 7, 'carbs': 38, 'fat': 5},
+
+  // Breads
   'roti': {'calories': 70, 'protein': 3, 'carbs': 15, 'fat': 1},
   'chapati': {'calories': 70, 'protein': 3, 'carbs': 15, 'fat': 1},
   'paratha': {'calories': 200, 'protein': 4, 'carbs': 30, 'fat': 8},
   'aloo paratha': {'calories': 250, 'protein': 5, 'carbs': 35, 'fat': 10},
+  'gobi paratha': {'calories': 230, 'protein': 5, 'carbs': 32, 'fat': 9},
+  'paneer paratha': {'calories': 280, 'protein': 9, 'carbs': 32, 'fat': 13},
+  'makki di roti': {'calories': 190, 'protein': 4, 'carbs': 38, 'fat': 3},
+  'naan': {'calories': 260, 'protein': 8, 'carbs': 45, 'fat': 6},
+  'butter naan': {'calories': 310, 'protein': 8, 'carbs': 45, 'fat': 11},
+  'garlic naan': {'calories': 290, 'protein': 8, 'carbs': 46, 'fat': 9},
+  'puri': {'calories': 130, 'protein': 3, 'carbs': 18, 'fat': 6},
+  'bhatura': {'calories': 200, 'protein': 4, 'carbs': 28, 'fat': 9},
+  'missi roti': {'calories': 90, 'protein': 4, 'carbs': 16, 'fat': 2},
+  'tandoori roti': {'calories': 80, 'protein': 3, 'carbs': 17, 'fat': 1},
+
+  // Rice
   'rice': {'calories': 130, 'protein': 3, 'carbs': 28, 'fat': 0},
-  'dal tadka': {'calories': 110, 'protein': 7, 'carbs': 15, 'fat': 4},
-  'paneer butter masala': {'calories': 280, 'protein': 12, 'carbs': 15, 'fat': 20},
-  'chole': {'calories': 160, 'protein': 9, 'carbs': 25, 'fat': 4},
+  'jeera rice': {'calories': 150, 'protein': 3, 'carbs': 30, 'fat': 3},
   'biryani': {'calories': 290, 'protein': 10, 'carbs': 45, 'fat': 9},
   'chicken biryani': {'calories': 320, 'protein': 18, 'carbs': 42, 'fat': 10},
-  'samosa': {'calories': 150, 'protein': 3, 'carbs': 20, 'fat': 7},
+  'mutton biryani': {'calories': 350, 'protein': 20, 'carbs': 40, 'fat': 14},
+  'veg biryani': {'calories': 270, 'protein': 7, 'carbs': 48, 'fat': 7},
+  'pulao': {'calories': 180, 'protein': 4, 'carbs': 35, 'fat': 4},
+  'khichdi': {'calories': 160, 'protein': 6, 'carbs': 28, 'fat': 3},
+  'fried rice': {'calories': 210, 'protein': 5, 'carbs': 38, 'fat': 5},
+
+  // Paneer dishes
+  'paneer butter masala': {'calories': 280, 'protein': 12, 'carbs': 15, 'fat': 20},
+  'palak paneer': {'calories': 220, 'protein': 10, 'carbs': 12, 'fat': 15},
+  'matar paneer': {'calories': 210, 'protein': 9, 'carbs': 18, 'fat': 12},
+  'paneer tikka': {'calories': 250, 'protein': 15, 'carbs': 8, 'fat': 17},
+  'paneer bhurji': {'calories': 230, 'protein': 13, 'carbs': 8, 'fat': 16},
+  'shahi paneer': {'calories': 310, 'protein': 12, 'carbs': 15, 'fat': 24},
+  'kadai paneer': {'calories': 265, 'protein': 11, 'carbs': 14, 'fat': 19},
+  'paneer': {'calories': 265, 'protein': 18, 'carbs': 4, 'fat': 20},
+
+  // Chicken dishes
+  'butter chicken': {'calories': 250, 'protein': 18, 'carbs': 10, 'fat': 16},
+  'chicken curry': {'calories': 220, 'protein': 20, 'carbs': 8, 'fat': 13},
+  'chicken tikka masala': {'calories': 260, 'protein': 22, 'carbs': 10, 'fat': 16},
+  'tandoori chicken': {'calories': 190, 'protein': 25, 'carbs': 4, 'fat': 8},
+  'chicken tikka': {'calories': 200, 'protein': 24, 'carbs': 5, 'fat': 9},
+  'chicken 65': {'calories': 280, 'protein': 22, 'carbs': 12, 'fat': 16},
+  'chicken korma': {'calories': 290, 'protein': 20, 'carbs': 12, 'fat': 19},
+
+  // Vegetables
+  'aloo gobi': {'calories': 130, 'protein': 4, 'carbs': 20, 'fat': 5},
+  'aloo sabzi': {'calories': 110, 'protein': 3, 'carbs': 20, 'fat': 4},
+  'aloo matar': {'calories': 135, 'protein': 4, 'carbs': 22, 'fat': 5},
+  'baingan bharta': {'calories': 100, 'protein': 3, 'carbs': 12, 'fat': 5},
+  'bhindi masala': {'calories': 90, 'protein': 3, 'carbs': 10, 'fat': 5},
+  'sarson da saag': {'calories': 80, 'protein': 4, 'carbs': 10, 'fat': 3},
+  'mixed veg': {'calories': 120, 'protein': 4, 'carbs': 16, 'fat': 5},
+  'pav bhaji': {'calories': 280, 'protein': 7, 'carbs': 42, 'fat': 10},
+  'veg kurma': {'calories': 180, 'protein': 5, 'carbs': 18, 'fat': 10},
+
+  // South Indian
   'idli': {'calories': 58, 'protein': 2, 'carbs': 12, 'fat': 0},
   'dosa': {'calories': 120, 'protein': 3, 'carbs': 22, 'fat': 3},
+  'masala dosa': {'calories': 215, 'protein': 5, 'carbs': 35, 'fat': 7},
+  'uttapam': {'calories': 175, 'protein': 5, 'carbs': 28, 'fat': 5},
   'upma': {'calories': 150, 'protein': 4, 'carbs': 25, 'fat': 5},
+  'vada': {'calories': 180, 'protein': 6, 'carbs': 20, 'fat': 9},
+  'sambhar vada': {'calories': 260, 'protein': 10, 'carbs': 32, 'fat': 11},
+  'coconut chutney': {'calories': 60, 'protein': 1, 'carbs': 4, 'fat': 5},
+
+  // Breakfast
   'poha': {'calories': 180, 'protein': 3, 'carbs': 35, 'fat': 4},
-  'khichdi': {'calories': 160, 'protein': 6, 'carbs': 28, 'fat': 3},
+  'aloo poha': {'calories': 210, 'protein': 4, 'carbs': 38, 'fat': 5},
+  'upma': {'calories': 150, 'protein': 4, 'carbs': 25, 'fat': 5},
+  'sabudana khichdi': {'calories': 220, 'protein': 3, 'carbs': 45, 'fat': 5},
+  'vermicelli upma': {'calories': 190, 'protein': 5, 'carbs': 32, 'fat': 5},
+  'besan chilla': {'calories': 150, 'protein': 8, 'carbs': 18, 'fat': 5},
+  'moong chilla': {'calories': 130, 'protein': 9, 'carbs': 16, 'fat': 3},
+
+  // Snacks
+  'samosa': {'calories': 150, 'protein': 3, 'carbs': 20, 'fat': 7},
+  'pakora': {'calories': 160, 'protein': 4, 'carbs': 18, 'fat': 8},
+  'aloo tikki': {'calories': 140, 'protein': 3, 'carbs': 22, 'fat': 5},
+  'pani puri': {'calories': 200, 'protein': 3, 'carbs': 32, 'fat': 6},
+  'bhel puri': {'calories': 180, 'protein': 4, 'carbs': 30, 'fat': 5},
+  'sev puri': {'calories': 210, 'protein': 4, 'carbs': 28, 'fat': 9},
+  'kachori': {'calories': 190, 'protein': 4, 'carbs': 24, 'fat': 9},
+  'chakli': {'calories': 170, 'protein': 3, 'carbs': 22, 'fat': 8},
+  'mathri': {'calories': 180, 'protein': 3, 'carbs': 22, 'fat': 9},
+
+  // Drinks
   'lassi': {'calories': 150, 'protein': 6, 'carbs': 20, 'fat': 5},
+  'sweet lassi': {'calories': 190, 'protein': 6, 'carbs': 28, 'fat': 5},
+  'mango lassi': {'calories': 200, 'protein': 5, 'carbs': 32, 'fat': 5},
   'chai': {'calories': 50, 'protein': 2, 'carbs': 8, 'fat': 1},
-  'makki di roti': {'calories': 190, 'protein': 4, 'carbs': 38, 'fat': 3},
-  'sarson da saag': {'calories': 80, 'protein': 4, 'carbs': 10, 'fat': 3},
-  'butter chicken': {'calories': 250, 'protein': 18, 'carbs': 10, 'fat': 16},
-  'palak paneer': {'calories': 220, 'protein': 10, 'carbs': 12, 'fat': 15},
-  'aloo gobi': {'calories': 130, 'protein': 4, 'carbs': 20, 'fat': 5},
-  'matar paneer': {'calories': 210, 'protein': 9, 'carbs': 18, 'fat': 12},
-  'naan': {'calories': 260, 'protein': 8, 'carbs': 45, 'fat': 6},
-  'puri': {'calories': 130, 'protein': 3, 'carbs': 18, 'fat': 6},
-  'aloo sabzi': {'calories': 110, 'protein': 3, 'carbs': 20, 'fat': 4},
-  'paneer': {'calories': 265, 'protein': 18, 'carbs': 4, 'fat': 20},
+  'masala chai': {'calories': 60, 'protein': 2, 'carbs': 9, 'fat': 2},
+  'nimbu pani': {'calories': 30, 'protein': 0, 'carbs': 8, 'fat': 0},
+  'shikanji': {'calories': 45, 'protein': 0, 'carbs': 11, 'fat': 0},
+  'aam panna': {'calories': 80, 'protein': 0, 'carbs': 20, 'fat': 0},
+
+  // Dairy
   'curd': {'calories': 60, 'protein': 4, 'carbs': 5, 'fat': 3},
   'raita': {'calories': 70, 'protein': 4, 'carbs': 8, 'fat': 2},
+  'dahi': {'calories': 60, 'protein': 4, 'carbs': 5, 'fat': 3},
+  'paneer': {'calories': 265, 'protein': 18, 'carbs': 4, 'fat': 20},
+  'ghee': {'calories': 112, 'protein': 0, 'carbs': 0, 'fat': 13},
+  'butter': {'calories': 100, 'protein': 0, 'carbs': 0, 'fat': 11},
+
+  // Sweets
+  'gulab jamun': {'calories': 150, 'protein': 2, 'carbs': 28, 'fat': 4},
+  'jalebi': {'calories': 150, 'protein': 1, 'carbs': 30, 'fat': 4},
+  'halwa': {'calories': 200, 'protein': 3, 'carbs': 30, 'fat': 8},
+  'kheer': {'calories': 180, 'protein': 5, 'carbs': 28, 'fat': 6},
+  'gajar ka halwa': {'calories': 220, 'protein': 4, 'carbs': 32, 'fat': 9},
+  'ladoo': {'calories': 170, 'protein': 3, 'carbs': 24, 'fat': 7},
+  'barfi': {'calories': 180, 'protein': 4, 'carbs': 26, 'fat': 7},
+  'rasgulla': {'calories': 110, 'protein': 3, 'carbs': 22, 'fat': 1},
+};
+
+// Serving sizes with multipliers
+const Map<String, double> servingSizes = {
+  '100g': 1.0,
+  '150g': 1.5,
+  '200g': 2.0,
+  '250g': 2.5,
+  '1 katori (150g)': 1.5,
+  '1 bowl (250g)': 2.5,
+  '1 plate (300g)': 3.0,
+  '1 glass (200ml)': 2.0,
+  '1 cup (100g)': 1.0,
+  '1 piece': 1.0,
+  '2 pieces': 2.0,
+  'Half plate (150g)': 1.5,
 };
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────────
@@ -313,6 +443,13 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = false;
   bool _logging = false;
   bool _showManualSearch = false;
+  String _selectedServing = '1 katori (150g)';
+
+  // Base values from AI (per 100g)
+  int _baseCalories = 0;
+  int _baseProtein = 0;
+  int _baseCarbs = 0;
+  int _baseFat = 0;
 
   late TextEditingController _dishNameController;
   late TextEditingController _caloriesController;
@@ -347,16 +484,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-
-    // Load calorie goal from profile
-    final profile = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
+    final profile = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (profile.exists && profile.data()?['calorie_goal'] != null) {
       setState(() => _goalCalories = profile.data()!['calorie_goal']);
     }
-
     await _loadTodayCalories();
   }
 
@@ -380,11 +511,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _populateControllers(NutritionResult result) {
+   _baseCalories = (result.calories as num).toInt();
+_baseProtein  = (result.protein  as num).toInt();
+_baseCarbs    = (result.carbs    as num).toInt();
+_baseFat      = (result.fat      as num).toInt();
     _dishNameController.text = result.dishName;
-    _caloriesController.text = result.calories.toString();
-    _proteinController.text = result.protein.toString();
-    _carbsController.text = result.carbs.toString();
-    _fatController.text = result.fat.toString();
+    _updateServingCalculation();
+  }
+
+  void _updateServingCalculation() {
+    final multiplier = servingSizes[_selectedServing] ?? 1.0;
+    _caloriesController.text = (_baseCalories * multiplier).round().toString();
+    _proteinController.text = (_baseProtein * multiplier).round().toString();
+    _carbsController.text = (_baseCarbs * multiplier).round().toString();
+    _fatController.text = (_baseFat * multiplier).round().toString();
   }
 
   Future<void> _logMeal() async {
@@ -399,11 +539,17 @@ class _HomeScreenState extends State<HomeScreen> {
         'protein': int.tryParse(_proteinController.text) ?? 0,
         'carbs': int.tryParse(_carbsController.text) ?? 0,
         'fat': int.tryParse(_fatController.text) ?? 0,
+        'serving': _selectedServing,
         'logged_at': FieldValue.serverTimestamp(),
       });
       await _loadTodayCalories();
       if (mounted) {
-        setState(() { _result = null; _webPicked = null; _showManualSearch = false; });
+        setState(() {
+          _result = null;
+          _webPicked = null;
+          _showManualSearch = false;
+          _selectedServing = '1 katori (150g)';
+        });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('✅ Meal logged!'),
           backgroundColor: Colors.green.shade600,
@@ -426,19 +572,25 @@ class _HomeScreenState extends State<HomeScreen> {
         final food = indianFoodDB[key]!;
         final result = NutritionResult(
           dishName: key,
-          portionSize: '1 serving (100g)',
+          portionSize: '100g',
           calories: food['calories']!,
           protein: food['protein']!,
           carbs: food['carbs']!,
           fat: food['fat']!,
           confidence: 95,
         );
-        setState(() { _result = result; _searchError = null; _showManualSearch = false; _searchController.clear(); });
+        setState(() {
+          _result = result;
+          _searchError = null;
+          _showManualSearch = false;
+          _searchController.clear();
+          _selectedServing = '1 katori (150g)';
+        });
         _populateControllers(result);
         return;
       }
     }
-    setState(() => _searchError = 'Not found. Try: dal, roti, paratha, biryani...');
+    setState(() => _searchError = 'Not found. Try: dal, roti, paratha, biryani, paneer...');
   }
 
   Future<void> _scanFood() async {
@@ -453,7 +605,13 @@ class _HomeScreenState extends State<HomeScreen> {
       final service = GeminiVisionService(apiKey: apiKey);
       final res = await service.analyzeFoodImageBase64(
           base64Image: _webPicked!.base64, mimeType: _webPicked!.mimeType);
-      if (mounted) { setState(() => _result = res); _populateControllers(res); }
+      if (mounted) {
+        setState(() {
+          _result = res;
+          _selectedServing = '1 katori (150g)';
+        });
+        _populateControllers(res);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not recognize food. Try manual search.');
     } finally {
@@ -481,7 +639,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Greeting
             Text('${_greeting()}, $name 👋',
                 style: const TextStyle(fontSize: 14, color: Colors.black45, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
@@ -489,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Color(0xFFFF7A00))),
             const SizedBox(height: 20),
 
-            // Calorie card — clean white with orange accent
+            // Calorie card
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -545,21 +702,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       minHeight: 8,
                       backgroundColor: const Color(0xFFF0F0F0),
                       valueColor: AlwaysStoppedAnimation(
-                        progress > 1.0 ? Colors.red : const Color(0xFFFF7A00),
-                      ),
+                          progress > 1.0 ? Colors.red : const Color(0xFFFF7A00)),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Macro summary
-                  Row(
-                    children: [
-                      _MacroChip(label: 'Protein', color: Colors.blue.shade400),
-                      const SizedBox(width: 8),
-                      _MacroChip(label: 'Carbs', color: Colors.amber.shade600),
-                      const SizedBox(width: 8),
-                      _MacroChip(label: 'Fat', color: Colors.red.shade400),
-                    ],
-                  ),
+                  Row(children: [
+                    _MacroChip(label: 'Protein', color: Colors.blue.shade400),
+                    const SizedBox(width: 8),
+                    _MacroChip(label: 'Carbs', color: Colors.amber.shade600),
+                    const SizedBox(width: 8),
+                    _MacroChip(label: 'Fat', color: Colors.red.shade400),
+                  ]),
                 ],
               ),
             ),
@@ -610,15 +763,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Text('Search Indian Food',
                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                     const SizedBox(height: 4),
-                    const Text('Type dish name in English',
-                        style: TextStyle(color: Colors.black38, fontSize: 12)),
+                    Text('${indianFoodDB.length}+ dishes available',
+                        style: const TextStyle(color: Colors.black38, fontSize: 12)),
                     const SizedBox(height: 10),
                     Row(children: [
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           decoration: InputDecoration(
-                            hintText: 'e.g. dal makhani, paratha...',
+                            hintText: 'e.g. dal makhani, biryani, samosa...',
                             hintStyle: const TextStyle(color: Colors.black26),
                             filled: true,
                             fillColor: const Color(0xFFF8F9FA),
@@ -668,7 +821,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('Analyzing your food...', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                    Text('AI is identifying the dish', style: TextStyle(color: Colors.black38, fontSize: 12)),
+                    const Text('AI is identifying the dish', style: TextStyle(color: Colors.black38, fontSize: 12)),
                   ]),
                 ]),
               ),
@@ -694,7 +847,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
             ],
 
-            // Confirmation card
+            // Confirmation card with serving size
             if (_result != null) ...[
               Container(
                 padding: const EdgeInsets.all(16),
@@ -707,22 +860,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(children: [
-                          Icon(Icons.check_circle, color: Colors.green.shade600, size: 14),
-                          const SizedBox(width: 4),
-                          Text('AI Result — Confirm before logging',
-                              style: TextStyle(color: Colors.green.shade700, fontSize: 11, fontWeight: FontWeight.w700)),
-                        ]),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ]),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.check_circle, color: Colors.green.shade600, size: 14),
+                        const SizedBox(width: 4),
+                        Text('AI Result — Confirm before logging',
+                            style: TextStyle(color: Colors.green.shade700, fontSize: 11, fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
                     const SizedBox(height: 14),
+
+                    // Dish name
                     const Text('Dish Name',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black38)),
                     const SizedBox(height: 4),
@@ -738,6 +891,37 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+
+                    // Serving size selector
+                    const Text('Serving Size',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black38)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButton<String>(
+                        value: _selectedServing,
+                        isExpanded: true,
+                        underline: const SizedBox(),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.black87),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedServing = val);
+                            _updateServingCalculation();
+                          }
+                        },
+                        items: servingSizes.keys.map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Nutrition fields
                     Row(children: [
                       _NutritionField(label: 'Calories', unit: 'kcal', controller: _caloriesController, highlight: true),
                       const SizedBox(width: 8),
@@ -750,6 +934,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _NutritionField(label: 'Fat', unit: 'g', controller: _fatController),
                     ]),
                     const SizedBox(height: 14),
+
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -881,9 +1066,13 @@ class _NutritionField extends StatelessWidget {
 
 // ─── LOG SCREEN ───────────────────────────────────────────────────────────────
 
-class LogScreen extends StatelessWidget {
+class LogScreen extends StatefulWidget {
   const LogScreen({super.key});
+  @override
+  State<LogScreen> createState() => _LogScreenState();
+}
 
+class _LogScreenState extends State<LogScreen> {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -895,8 +1084,10 @@ class LogScreen extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Meal Log', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          const Text("Today's meals", style: TextStyle(color: Colors.black38, fontSize: 13, fontWeight: FontWeight.w500)),
+          const Text('Meal Log',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+          const Text("Today's meals",
+              style: TextStyle(color: Colors.black38, fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 16),
           Expanded(
             child: uid == null
@@ -907,11 +1098,28 @@ class LogScreen extends StatelessWidget {
                         .where('user_id', isEqualTo: uid)
                         .where('logged_at', isGreaterThanOrEqualTo: startOfDay)
                         .where('logged_at', isLessThanOrEqualTo: endOfDay)
-                        .orderBy('logged_at', descending: true)
+                        .orderBy('logged_at', descending: false)
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text('⚠️', style: TextStyle(fontSize: 40)),
+                              const SizedBox(height: 8),
+                              Text('Error loading meals',
+                                  style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 4),
+                              Text(snapshot.error.toString(),
+                                  style: const TextStyle(color: Colors.black38, fontSize: 11),
+                                  textAlign: TextAlign.center),
+                            ],
+                          ),
+                        );
                       }
                       final docs = snapshot.data?.docs ?? [];
                       if (docs.isEmpty) {
@@ -920,9 +1128,11 @@ class LogScreen extends StatelessWidget {
                           children: [
                             const Text('🍽️', style: TextStyle(fontSize: 56)),
                             const SizedBox(height: 12),
-                            const Text('No meals logged today', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black54)),
+                            const Text('No meals logged today',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black54)),
                             const SizedBox(height: 6),
-                            const Text('Scan your food to get started', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                            const Text('Scan your food to get started',
+                                style: TextStyle(color: Colors.black38, fontSize: 13)),
                           ],
                         ));
                       }
@@ -940,7 +1150,6 @@ class LogScreen extends StatelessWidget {
                       }
 
                       return Column(children: [
-                        // Summary card
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -950,7 +1159,8 @@ class LogScreen extends StatelessWidget {
                           ),
                           child: Column(children: [
                             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              const Text('Total today', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black45, fontSize: 13)),
+                              const Text('Total today',
+                                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black45, fontSize: 13)),
                               Text('$totalCal kcal',
                                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Color(0xFFFF7A00))),
                             ]),
@@ -970,7 +1180,10 @@ class LogScreen extends StatelessWidget {
                             itemBuilder: (context, i) {
                               final data = docs[i].data() as Map<String, dynamic>;
                               final ts = data['logged_at'] as Timestamp?;
-                              final time = ts != null ? TimeOfDay.fromDateTime(ts.toDate()).format(context) : '';
+                              final time = ts != null
+                                  ? TimeOfDay.fromDateTime(ts.toDate()).format(context)
+                                  : '';
+                              final serving = data['serving'] as String? ?? '';
                               return Dismissible(
                                 key: Key(docs[i].id),
                                 direction: DismissDirection.endToStart,
@@ -984,7 +1197,10 @@ class LogScreen extends StatelessWidget {
                                   child: const Icon(Icons.delete_outline, color: Colors.white),
                                 ),
                                 onDismissed: (_) async {
-                                  await FirebaseFirestore.instance.collection('meals').doc(docs[i].id).delete();
+                                  await FirebaseFirestore.instance
+                                      .collection('meals')
+                                      .doc(docs[i].id)
+                                      .delete();
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.all(14),
@@ -1007,12 +1223,16 @@ class LogScreen extends StatelessWidget {
                                       Text(data['dish_name'] ?? '',
                                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                                       const SizedBox(height: 2),
-                                      Text(time, style: const TextStyle(color: Colors.black38, fontSize: 12)),
+                                      Text(
+                                        serving.isNotEmpty ? '$time • $serving' : time,
+                                        style: const TextStyle(color: Colors.black38, fontSize: 12),
+                                      ),
                                     ])),
                                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                                       Text('${data['calories']}',
                                           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFFFF7A00))),
-                                      const Text('kcal', style: TextStyle(color: Colors.black38, fontSize: 11)),
+                                      const Text('kcal',
+                                          style: TextStyle(color: Colors.black38, fontSize: 11)),
                                     ]),
                                   ]),
                                 ),
@@ -1095,11 +1315,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final goals = [1200, 1500, 1800, 2000, 2200, 2500, 3000];
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Set Daily Calorie Goal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          const Text('Set Daily Calorie Goal',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 16),
           Wrap(
             spacing: 8,
@@ -1135,10 +1357,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Profile', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+          const Text('Profile',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
           const SizedBox(height: 16),
 
-          // Profile card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -1157,15 +1379,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('My Account', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const Text('My Account',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(email, style: const TextStyle(color: Colors.black38, fontSize: 13), overflow: TextOverflow.ellipsis),
+                Text(email,
+                    style: const TextStyle(color: Colors.black38, fontSize: 13),
+                    overflow: TextOverflow.ellipsis),
               ])),
             ]),
           ),
           const SizedBox(height: 12),
 
-          // Calorie goal
           GestureDetector(
             onTap: _showGoalPicker,
             child: Container(
@@ -1186,7 +1410,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Daily Calorie Goal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  const Text('Daily Calorie Goal',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                   Text('$_calorieGoal kcal per day',
                       style: const TextStyle(color: Colors.black38, fontSize: 13)),
                 ])),
@@ -1196,7 +1421,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 12),
 
-          // App info
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -1245,7 +1469,8 @@ class _ProfileRow extends StatelessWidget {
     return Row(children: [
       Icon(icon, size: 18, color: Colors.black38),
       const SizedBox(width: 10),
-      Expanded(child: Text(label, style: const TextStyle(color: Colors.black54, fontSize: 14, fontWeight: FontWeight.w600))),
+      Expanded(child: Text(label,
+          style: const TextStyle(color: Colors.black54, fontSize: 14, fontWeight: FontWeight.w600))),
       Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
     ]);
   }
