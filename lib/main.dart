@@ -846,15 +846,17 @@ _baseFat = result.fat.toInt();
     setState(() => _logging = true);
     try {
       await FirebaseFirestore.instance.collection('meals').add({
-        'user_id': uid,
-        'dish_name': _dishNameController.text,
-        'calories': int.tryParse(_caloriesController.text) ?? 0,
-        'protein': int.tryParse(_proteinController.text) ?? 0,
-        'carbs': int.tryParse(_carbsController.text) ?? 0,
-        'fat': int.tryParse(_fatController.text) ?? 0,
-        'serving': _selectedServing,
-        'logged_at': FieldValue.serverTimestamp(),
-      });
+  'user_id': uid,
+  'dish_name': _dishNameController.text,
+  'calories': int.tryParse(_caloriesController.text) ?? 0,
+  'protein': int.tryParse(_proteinController.text) ?? 0,
+  'carbs': int.tryParse(_carbsController.text) ?? 0,
+  'fat': int.tryParse(_fatController.text) ?? 0,
+  'serving': _selectedServing,
+  'logged_at': FieldValue.serverTimestamp(),
+  'image_base64': _webPicked?.base64 ?? '',
+  'image_mime': _webPicked?.mimeType ?? '',
+});
       await _loadTodayCalories();
       await _loadWeeklyData();
       if (mounted) {
