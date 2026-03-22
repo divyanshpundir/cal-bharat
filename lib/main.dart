@@ -736,7 +736,7 @@ _baseFat = result.fat.toInt();
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 120,
+          height: 140,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -762,7 +762,7 @@ _baseFat = result.fat.toInt();
                   const SizedBox(height: 4),
                   Container(
                     width: 32,
-                    height: height.clamp(4.0, 90.0),
+                    height: height.clamp(4.0, 80.0),
                     decoration: BoxDecoration(
                       color: isOver
                           ? Colors.red.shade400
