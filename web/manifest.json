@@ -1,6 +1,6 @@
 {
-    "name": "cal_bharat",
-    "short_name": "cal_bharat",
+    "name": "Cal भारत - Indian Calorie Tracker",
+   "short_name": "Calभारत",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
