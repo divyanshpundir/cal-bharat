@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 import 'models/nutrition_result.dart';
 import 'services/gemini_vision_service.dart';
@@ -402,7 +401,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _todayCalories = 0;
   int _goalCalories = 2000;
-  List<FlSpot> _weeklyData = [];
+  List<double> _weeklyData = [];
 
   webpick.WebPickedImage? _webPicked;
   NutritionResult? _result;
@@ -478,29 +477,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadWeeklyData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    final now = DateTime.now();
-    final List<FlSpot> spots = [];
-
-    for (int i = 6; i >= 0; i--) {
-      final day = now.subtract(Duration(days: i));
-      final start = Timestamp.fromDate(DateTime(day.year, day.month, day.day));
-      final end = Timestamp.fromDate(DateTime(day.year, day.month, day.day, 23, 59, 59));
-      final snap = await FirebaseFirestore.instance
-          .collection('meals')
-          .where('user_id', isEqualTo: uid)
-          .where('logged_at', isGreaterThanOrEqualTo: start)
-          .where('logged_at', isLessThanOrEqualTo: end)
-          .get();
-      int total = 0;
-      for (final doc in snap.docs) {
-        total += (doc['calories'] as num).toInt();
-      }
-      spots.add(FlSpot((6 - i).toDouble(), total.toDouble()));
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final now = DateTime.now();
+  final List<double> data = [];
+  for (int i = 6; i >= 0; i--) {
+    final day = now.subtract(Duration(days: i));
+    final start = Timestamp.fromDate(DateTime(day.year, day.month, day.day));
+    final end = Timestamp.fromDate(DateTime(day.year, day.month, day.day, 23, 59, 59));
+    final snap = await FirebaseFirestore.instance
+        .collection('meals')
+        .where('user_id', isEqualTo: uid)
+        .where('logged_at', isGreaterThanOrEqualTo: start)
+        .where('logged_at', isLessThanOrEqualTo: end)
+        .get();
+    int total = 0;
+    for (final doc in snap.docs) {
+      total += (doc['calories'] as num).toInt();
     }
-    if (mounted) setState(() => _weeklyData = spots);
+    data.add(total.toDouble());
   }
+  if (mounted) setState(() => _weeklyData = data);
+}
 
   void _populateControllers(NutritionResult result) {
    _baseCalories = result.calories.toInt();
@@ -716,90 +714,90 @@ _baseFat = result.fat.toInt();
             const SizedBox(height: 16),
 
             // Weekly chart
-            if (_weeklyData.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4))],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Weekly Progress',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                        Text('Last 7 days',
-                            style: TextStyle(fontSize: 12, color: Colors.black38, fontWeight: FontWeight.w600)),
-                      ],
+           if (_weeklyData.isNotEmpty) ...[
+  Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4))],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Weekly Progress',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            Text('Last 7 days',
+                style: TextStyle(fontSize: 12, color: Colors.black38, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 120,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(_weeklyData.length, (i) {
+              final val = _weeklyData[i];
+              final maxVal = _weeklyData.reduce((a, b) => a > b ? a : b);
+              final height = maxVal > 0 ? (val / maxVal) * 90 : 4.0;
+              final isToday = i == 6;
+              final isOver = val > _goalCalories;
+              final now = DateTime.now();
+              final day = now.subtract(Duration(days: 6 - i));
+              const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+              final label = dayLabels[day.weekday - 1];
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (val > 0)
+                    Text('${val.toInt()}',
+                        style: TextStyle(
+                            fontSize: 9,
+                            color: isToday ? const Color(0xFFFF7A00) : Colors.black38,
+                            fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 32,
+                    height: height.clamp(4.0, 90.0),
+                    decoration: BoxDecoration(
+                      color: isOver
+                          ? Colors.red.shade400
+                          : isToday
+                              ? const Color(0xFFFF7A00)
+                              : const Color(0xFFFF7A00).withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 120,
-                      child: BarChart(
-                        BarChartData(
-                          alignment: BarChartAlignment.spaceAround,
-                          maxY: (_goalCalories * 1.5).toDouble(),
-                          barTouchData: BarTouchData(enabled: false),
-                          titlesData: FlTitlesData(
-                            show: true,
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (value, meta) => Text(
-                                  _dayLabel(value.toInt()),
-                                  style: const TextStyle(fontSize: 10, color: Colors.black38, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          ),
-                          gridData: const FlGridData(show: false),
-                          borderData: FlBorderData(show: false),
-                          barGroups: _weeklyData.map((spot) {
-                            final isToday = spot.x == 6;
-                            final isOver = spot.y > _goalCalories;
-                            return BarChartGroupData(
-                              x: spot.x.toInt(),
-                              barRods: [
-                                BarChartRodData(
-                                  toY: spot.y == 0 ? 0.5 : spot.y,
-                                  color: isOver
-                                      ? Colors.red.shade400
-                                      : isToday
-                                          ? const Color(0xFFFF7A00)
-                                          : const Color(0xFFFF7A00).withValues(alpha: 0.3),
-                                  width: 20,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                          // Goal line
-                          extraLinesData: ExtraLinesData(
-                            horizontalLines: [
-                              HorizontalLine(
-                                y: _goalCalories.toDouble(),
-                                color: Colors.black12,
-                                strokeWidth: 1,
-                                dashArray: [4, 4],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
+                  ),
+                  const SizedBox(height: 6),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: isToday ? const Color(0xFFFF7A00) : Colors.black38,
+                          fontWeight: isToday ? FontWeight.w800 : FontWeight.w600)),
+                ],
+              );
+            }),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: const Color(0xFFFF7A00), borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 4),
+          const Text('Within goal', style: TextStyle(fontSize: 10, color: Colors.black45)),
+          const SizedBox(width: 12),
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 4),
+          const Text('Over goal', style: TextStyle(fontSize: 10, color: Colors.black45)),
+        ]),
+      ],
+    ),
+  ),
+  const SizedBox(height: 16),
+],
             // Action buttons
             Row(
               children: [
