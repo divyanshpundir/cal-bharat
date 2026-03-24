@@ -64,6 +64,10 @@ class _AuthGateState extends State<AuthGate> {
     setState(() => _seenOnboarding = seen);
   }
 
+Future<bool> _checkProfileSetup(String uid) async {
+  final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+  return doc.exists && doc.data()?['name'] != null;
+}
   @override
   Widget build(BuildContext context) {
     if (_seenOnboarding == null) {
@@ -78,8 +82,19 @@ class _AuthGateState extends State<AuthGate> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        if (snapshot.data == null) return const LoginScreen();
-        return const AppShell();
+       if (snapshot.data == null) return const LoginScreen();
+return FutureBuilder<bool>(
+  future: _checkProfileSetup(snapshot.data!.uid),
+  builder: (context, profileSnap) {
+    if (profileSnap.connectionState == ConnectionState.waiting) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (profileSnap.data == false) {
+      return ProfileSetupScreen(uid: snapshot.data!.uid);
+    }
+    return const AppShell();
+  },
+);
       },
     );
   }
@@ -724,6 +739,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _todayCalories = 0;
   int _goalCalories = 2000;
+  double _weightKg = 0;
+double _heightCm = 0;
   List<double> _weeklyData = [];
 
   webpick.WebPickedImage? _webPicked;
@@ -773,9 +790,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     final profile = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-    if (profile.exists && profile.data()?['calorie_goal'] != null) {
-      setState(() => _goalCalories = profile.data()!['calorie_goal']);
-    }
+   if (profile.exists) {
+  final d = profile.data()!;
+  if (d['calorie_goal'] != null) setState(() => _goalCalories = d['calorie_goal']);
+  if (d['weight_kg'] != null) setState(() => _weightKg = (d['weight_kg'] as num).toDouble());
+  if (d['height_cm'] != null) setState(() => _heightCm = (d['height_cm'] as num).toDouble());
+}
     await _loadTodayCalories();
     await _loadWeeklyData();
   }
@@ -959,12 +979,108 @@ _baseFat = result.fat.toInt();
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${_greeting()}, $name 👋',
-                style: const TextStyle(fontSize: 14, color: Colors.black45, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            const Text('Cal भारत',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Color(0xFFFF7A00))),
-            const SizedBox(height: 20),
+            Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('${_greeting()}, $name 👋',
+          style: const TextStyle(fontSize: 14, color: Colors.black45, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 4),
+      const Text('Cal भारत',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Color(0xFFFF7A00))),
+    ]),
+    GestureDetector(
+      onTap: () {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null) return;
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => DraggableScrollableSheet(
+            initialChildSize: 0.92,
+            maxChildSize: 0.95,
+            minChildSize: 0.5,
+            builder: (_, controller) => Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: ProfileSetupScreen(uid: uid),
+            ),
+          ),
+        ).then((_) => _loadData());
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8)],
+        ),
+        child: Row(children: [
+          const Icon(Icons.edit_outlined, size: 14, color: Color(0xFFFF7A00)),
+          const SizedBox(width: 4),
+          const Text('Edit Profile', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFFF7A00))),
+        ]),
+      ),
+    ),
+  ],
+),
+const SizedBox(height: 16),
+
+// BMI Card
+// BMI Card
+_weightKg > 0 && _heightCm > 0
+    ? Column(children: [
+        _BMICard(weightKg: _weightKg, heightCm: _heightCm),
+        const SizedBox(height: 16),
+      ])
+    : GestureDetector(
+        onTap: () {
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          if (uid == null) return;
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => DraggableScrollableSheet(
+              initialChildSize: 0.92,
+              maxChildSize: 0.95,
+              minChildSize: 0.5,
+              builder: (_, controller) => Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: ProfileSetupScreen(uid: uid),
+              ),
+            ),
+          ).then((_) => _loadData());
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4))],
+          ),
+          child: Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.monitor_weight_outlined, color: Colors.purple.shade400, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Check your BMI', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              const Text('Tap to set up your profile', style: TextStyle(color: Colors.black38, fontSize: 13)),
+            ])),
+            const Icon(Icons.chevron_right, color: Colors.black26),
+          ]),
+        ),
+      ),
 
             // Calorie card
             Container(
@@ -1666,10 +1782,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _loadProfile();
-  }
 
   Future<void> _loadProfile() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1743,87 +1855,193 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Profile',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          const SizedBox(height: 16),
+const Text('Profile',
+    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+const SizedBox(height: 4),
+const Text('Your health, your journey 💪',
+    style: TextStyle(fontSize: 13, color: Colors.black38, fontWeight: FontWeight.w500)),
+const SizedBox(height: 20),
 
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: Row(children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF7A00).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(Icons.person_outline, color: Color(0xFFFF7A00), size: 28),
-              ),
-              const SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('My Account',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(email,
-                    style: const TextStyle(color: Colors.black38, fontSize: 13),
-                    overflow: TextOverflow.ellipsis),
-              ])),
-            ]),
+// Profile card
+Container(
+  padding: const EdgeInsets.all(20),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(20),
+    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+  ),
+  child: Row(children: [
+    Container(
+      width: 56, height: 56,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF7A00).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Icon(Icons.person_outline, color: Color(0xFFFF7A00), size: 28),
+    ),
+    const SizedBox(width: 14),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('My Account', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      const SizedBox(height: 4),
+      Text(email, style: const TextStyle(color: Colors.black38, fontSize: 13), overflow: TextOverflow.ellipsis),
+    ])),
+  ]),
+),
+const SizedBox(height: 12),
+
+// Edit Profile / Check BMI
+GestureDetector(
+  onTap: () {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.92,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFF8F9FA),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          const SizedBox(height: 12),
+          child: ProfileSetupScreen(uid: uid),
+        ),
+      ),
+    ).then((_) => _loadProfile());
+  },
+  child: Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+    ),
+    child: Row(children: [
+      Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
+        child: Icon(Icons.monitor_weight_outlined, color: Colors.purple.shade400, size: 22),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Edit Profile & Check BMI', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        const Text('Update your stats, see your BMI', style: TextStyle(color: Colors.black38, fontSize: 13)),
+      ])),
+      const Icon(Icons.chevron_right, color: Colors.black26),
+    ]),
+  ),
+),
+const SizedBox(height: 12),
 
-          GestureDetector(
-            onTap: _showGoalPicker,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
-              ),
-              child: Row(children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.local_fire_department_outlined, color: Color(0xFFFF7A00), size: 22),
-                ),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Daily Calorie Goal',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  Text('$_calorieGoal kcal per day',
-                      style: const TextStyle(color: Colors.black38, fontSize: 13)),
-                ])),
-                const Icon(Icons.chevron_right, color: Colors.black26),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 12),
+// Calorie goal
+GestureDetector(
+  onTap: _showGoalPicker,
+  child: Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+    ),
+    child: Row(children: [
+      Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
+        child: const Icon(Icons.local_fire_department_outlined, color: Color(0xFFFF7A00), size: 22),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Daily Calorie Goal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        Text('$_calorieGoal kcal per day', style: const TextStyle(color: Colors.black38, fontSize: 13)),
+      ])),
+      const Icon(Icons.chevron_right, color: Colors.black26),
+    ]),
+  ),
+),
+const SizedBox(height: 12),
 
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: Column(children: [
-              _ProfileRow(icon: Icons.info_outline, label: 'App Version', value: 'V2.0'),
-              const Divider(height: 20, color: Color(0xFFF0F0F0)),
-              _ProfileRow(icon: Icons.restaurant_menu_outlined, label: 'Indian dishes in database', value: '${indianFoodDB.length}+'),
-              const Divider(height: 20, color: Color(0xFFF0F0F0)),
-              _ProfileRow(icon: Icons.star_outline, label: 'Powered by', value: 'Groq AI'),
-            ]),
-          ),
-          const SizedBox(height: 24),
+// App info
+Container(
+  padding: const EdgeInsets.all(20),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(20),
+    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+  ),
+  child: Column(children: [
+    _ProfileRow(icon: Icons.info_outline, label: 'App Version', value: 'V3.0'),
+    const Divider(height: 20, color: Color(0xFFF0F0F0)),
+    _ProfileRow(icon: Icons.restaurant_menu_outlined, label: 'Indian dishes in database', value: '${indianFoodDB.length}+'),
+    const Divider(height: 20, color: Color(0xFFF0F0F0)),
+    _ProfileRow(icon: Icons.star_outline, label: 'Powered by', value: 'Groq AI'),
+  ]),
+),
+const SizedBox(height: 16),
 
+// Motivational quote
+// Motivational quotes - 3 boxes
+Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Expanded(child: Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFF7A00).withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFFF7A00).withValues(alpha: 0.2)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('💡', style: TextStyle(fontSize: 20)),
+      const SizedBox(height: 8),
+      const Text(
+        '"Take care of your body. It\'s the only place you have to live."',
+        style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 4),
+      const Text('— Jim Rohn', style: TextStyle(fontSize: 10, color: Colors.black38, fontWeight: FontWeight.w600)),
+    ]),
+  )),
+  const SizedBox(width: 8),
+  Expanded(child: Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.green.shade50,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.green.shade100),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('🌱', style: TextStyle(fontSize: 20)),
+      const SizedBox(height: 8),
+      const Text(
+        '"A healthy outside starts from the inside."',
+        style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 4),
+      const Text('— Robert Urich', style: TextStyle(fontSize: 10, color: Colors.black38, fontWeight: FontWeight.w600)),
+    ]),
+  )),
+  const SizedBox(width: 8),
+  Expanded(child: Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.blue.shade50,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.blue.shade100),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('🏃', style: TextStyle(fontSize: 20)),
+      const SizedBox(height: 8),
+      const Text(
+        '"To keep the body in good health is a duty, otherwise we shall not be able to keep our mind strong."',
+        style: TextStyle(fontSize: 11, color: Colors.black54, height: 1.5, fontStyle: FontStyle.italic),
+      ),
+      const SizedBox(height: 4),
+      const Text('— Buddha', style: TextStyle(fontSize: 10, color: Colors.black38, fontWeight: FontWeight.w600)),
+    ]),
+  )),
+]),
+const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -1859,5 +2077,550 @@ class _ProfileRow extends StatelessWidget {
           style: const TextStyle(color: Colors.black54, fontSize: 14, fontWeight: FontWeight.w600))),
       Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
     ]);
+  }
+}
+// ─── PROFILE SETUP SCREEN ─────────────────────────────────────────────────────
+
+class ProfileSetupScreen extends StatefulWidget {
+  const ProfileSetupScreen({super.key, required this.uid});
+  final String uid;
+  @override
+  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+}
+
+class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+  final _nameController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _heightFeetController = TextEditingController();
+  final _heightInchesController = TextEditingController();
+  final _heightCmController = TextEditingController();
+  String _gender = 'Male';
+  String _goal = 'Maintain';
+  String _weightUnit = 'kg';
+  String _heightUnit = 'cm';
+  String _weeklyGoal = '0.5 kg/week';
+  bool _saving = false;
+
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingData();
+  }
+
+  Future<void> _loadExistingData() async {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(widget.uid).get();
+    if (!doc.exists) return;
+    final d = doc.data()!;
+    if (mounted) setState(() {
+      if (d['name'] != null) _nameController.text = d['name'];
+      if (d['age'] != null) _ageController.text = d['age'].toString();
+      if (d['weight_kg'] != null) _weightController.text = (d['weight_kg'] as num).toStringAsFixed(1);
+      if (d['height_cm'] != null) _heightCmController.text = (d['height_cm'] as num).toStringAsFixed(0);
+      if (d['gender'] != null) _gender = d['gender'];
+      if (d['goal'] != null) _goal = d['goal'];
+      if (d['weekly_goal'] != null && d['weekly_goal'] != 'maintain') _weeklyGoal = d['weekly_goal'];
+    });
+  }
+  final List<String> _lossOptions = ['0.25 kg/week', '0.5 kg/week', '0.75 kg/week', '1 kg/week'];
+  final List<String> _gainOptions = ['0.25 kg/week', '0.5 kg/week', '0.75 kg/week', '1 kg/week', '1.5 kg/week'];
+
+  double _getWeightInKg() {
+    final val = double.tryParse(_weightController.text) ?? 70;
+    if (_weightUnit == 'lbs') return val * 0.453592;
+    return val;
+  }
+
+  double _getHeightInCm() {
+    if (_heightUnit == 'cm') {
+      return double.tryParse(_heightCmController.text) ?? 170;
+    } else {
+      final feet = double.tryParse(_heightFeetController.text) ?? 5;
+      final inches = double.tryParse(_heightInchesController.text) ?? 7;
+      return (feet * 30.48) + (inches * 2.54);
+    }
+  }
+
+  int _calculateCalories() {
+    final weight = _getWeightInKg();
+    final height = _getHeightInCm();
+    final age = int.tryParse(_ageController.text) ?? 25;
+
+    double bmr;
+    if (_gender == 'Female') {
+      bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+    } else {
+      bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+    }
+
+    double tdee = bmr * 1.55;
+
+    if (_goal == 'Lose weight') {
+      final rate = double.tryParse(_weeklyGoal.split(' ')[0]) ?? 0.5;
+      tdee -= rate * 1100;
+    } else if (_goal == 'Gain weight') {
+      final rate = double.tryParse(_weeklyGoal.split(' ')[0]) ?? 0.5;
+      tdee += rate * 1100;
+    }
+
+    return tdee.clamp(1200, 5000).round();
+  }
+
+  String _getWeeklyGoalAdvice() {
+    if (_goal == 'Lose weight') {
+      return '✅ Recommended: 0.5 kg/week — safe and sustainable\n⚠️ Max recommended: 1 kg/week — beyond this is risky';
+    } else if (_goal == 'Gain weight') {
+      return '✅ Recommended: 0.25-0.5 kg/week — mostly muscle\n⚠️ Beyond 0.5 kg/week may add more fat';
+    }
+    return '';
+  }
+
+  Future<void> _saveProfile() async {
+    if (_nameController.text.isEmpty ||
+        _ageController.text.isEmpty ||
+        _weightController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final calories = _calculateCalories();
+      await FirebaseFirestore.instance.collection('users').doc(widget.uid).set({
+        'name': _nameController.text.trim(),
+        'age': int.tryParse(_ageController.text) ?? 0,
+        'weight_kg': _getWeightInKg(),
+        'height_cm': _getHeightInCm(),
+        'gender': _gender,
+        'goal': _goal,
+        'weekly_goal': _goal == 'Maintain' ? 'maintain' : _weeklyGoal,
+        'calorie_goal': calories,
+        'setup_done': true,
+      }, SetOptions(merge: true));
+      if (mounted) {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const AppShell()));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _skipSetup() async {
+    await FirebaseFirestore.instance.collection('users').doc(widget.uid).set({
+      'name': 'there',
+      'calorie_goal': 2000,
+      'setup_done': true,
+    }, SetOptions(merge: true));
+    if (mounted) {
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const AppShell()));
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
+    _heightFeetController.dispose();
+    _heightInchesController.dispose();
+    _heightCmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showCalPreview = _weightController.text.isNotEmpty &&
+        _ageController.text.isNotEmpty &&
+        (_heightUnit == 'cm'
+            ? _heightCmController.text.isNotEmpty
+            : _heightFeetController.text.isNotEmpty);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 60, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('👋', style: TextStyle(fontSize: 48)),
+                  const SizedBox(height: 16),
+                  const Text('Tell us about yourself',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                  const SizedBox(height: 8),
+                  const Text('We\'ll calculate your personalized calorie goal',
+                      style: TextStyle(fontSize: 15, color: Colors.black45)),
+                  const SizedBox(height: 32),
+
+                  // Name
+                  _buildLabel('Your Name'),
+                  _buildTextField(_nameController, 'e.g. Divyansh', TextInputType.name),
+                  const SizedBox(height: 16),
+
+                  // Age and Gender
+                  Row(children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _buildLabel('Age'),
+                      _buildTextField(_ageController, 'e.g. 20', TextInputType.number),
+                    ])),
+                    const SizedBox(width: 16),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _buildLabel('Gender'),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          value: _gender,
+                          decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                          items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                          onChanged: (v) => setState(() => _gender = v!),
+                        ),
+                      ),
+                    ])),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Weight
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    _buildLabel('Weight'),
+                    Row(children: [
+                      _UnitChip(label: 'kg', selected: _weightUnit == 'kg', onTap: () => setState(() => _weightUnit = 'kg')),
+                      const SizedBox(width: 8),
+                      _UnitChip(label: 'lbs', selected: _weightUnit == 'lbs', onTap: () => setState(() => _weightUnit = 'lbs')),
+                    ]),
+                  ]),
+                  _buildTextField(_weightController, _weightUnit == 'kg' ? 'e.g. 65' : 'e.g. 143', TextInputType.number),
+                  const SizedBox(height: 16),
+
+                  // Height
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    _buildLabel('Height'),
+                    Row(children: [
+                      _UnitChip(label: 'cm', selected: _heightUnit == 'cm', onTap: () => setState(() => _heightUnit = 'cm')),
+                      const SizedBox(width: 8),
+                      _UnitChip(label: 'ft/in', selected: _heightUnit == 'ft', onTap: () => setState(() => _heightUnit = 'ft')),
+                    ]),
+                  ]),
+                  if (_heightUnit == 'cm')
+                    _buildTextField(_heightCmController, 'e.g. 170', TextInputType.number)
+                  else
+                    Row(children: [
+                      Expanded(child: _buildTextField(_heightFeetController, 'Feet e.g. 5', TextInputType.number)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildTextField(_heightInchesController, 'Inches e.g. 7', TextInputType.number)),
+                    ]),
+                  const SizedBox(height: 16),
+
+                  // Goal
+                  _buildLabel('Your Goal'),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    _GoalChip(label: '🏃 Lose', selected: _goal == 'Lose weight', onTap: () => setState(() { _goal = 'Lose weight'; _weeklyGoal = '0.5 kg/week'; })),
+                    const SizedBox(width: 8),
+                    _GoalChip(label: '⚖️ Maintain', selected: _goal == 'Maintain', onTap: () => setState(() => _goal = 'Maintain')),
+                    const SizedBox(width: 8),
+                    _GoalChip(label: '💪 Gain', selected: _goal == 'Gain weight', onTap: () => setState(() { _goal = 'Gain weight'; _weeklyGoal = '0.5 kg/week'; })),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // Weekly goal selector
+                  if (_goal != 'Maintain') ...[
+                    _buildLabel(_goal == 'Lose weight' ? 'How fast to lose?' : 'How fast to gain?'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: (_goal == 'Lose weight' ? _lossOptions : _gainOptions).map((opt) {
+                        final selected = _weeklyGoal == opt;
+                        return GestureDetector(
+                          onTap: () => setState(() => _weeklyGoal = opt),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: selected ? const Color(0xFFFF7A00) : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+                            ),
+                            child: Text(opt,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected ? Colors.white : Colors.black54,
+                                )),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade100),
+                      ),
+                      child: Text(
+                        _getWeeklyGoalAdvice(),
+                        style: TextStyle(fontSize: 12, color: Colors.blue.shade700, height: 1.6),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Calorie preview
+                  if (showCalPreview) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF7A00).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFF7A00).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(children: [
+                        const Text('🎯', style: TextStyle(fontSize: 24)),
+                        const SizedBox(width: 12),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('Your daily calorie goal',
+                              style: TextStyle(fontSize: 12, color: Colors.black45, fontWeight: FontWeight.w600)),
+                          Text('${_calculateCalories()} kcal',
+                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFFFF7A00))),
+                        ]),
+                      ]),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF7A00),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                      ),
+                      onPressed: _saving ? null : _saveProfile,
+                      child: _saving
+                          ? const SizedBox(height: 20, width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Save Changes ✅'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.red.shade300, width: 1.5),
+                        foregroundColor: Colors.red.shade400,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Reset Profile?'),
+                            content: const Text('This will delete all your profile data. You will need to set it up again.'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                              TextButton(
+                                onPressed: () async {
+                                  await FirebaseFirestore.instance.collection('users').doc(widget.uid).set({'setup_done': false});
+                                  if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+                                },
+                                child: Text('Reset', style: TextStyle(color: Colors.red.shade400)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+                      label: const Text('Reset Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: _skipSetup,
+                icon: const Icon(Icons.close, color: Colors.black45),
+                tooltip: 'Skip for now',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(text,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String hint, TextInputType type) {
+    return TextField(
+      controller: controller,
+      keyboardType: type,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.black26),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      ),
+    );
+  }
+}
+
+class _UnitChip extends StatelessWidget {
+  const _UnitChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFFF7A00) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+        ),
+        child: Text(label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : Colors.black45,
+            )),
+      ),
+    );
+  }
+}
+
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFFF7A00) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+          ),
+          child: Text(label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : Colors.black54,
+              )),
+        ),
+      ),
+    );
+  }
+}
+class _BMICard extends StatelessWidget {
+  const _BMICard({required this.weightKg, required this.heightCm});
+  final double weightKg;
+  final double heightCm;
+
+  @override
+  Widget build(BuildContext context) {
+    final heightM = heightCm / 100;
+    final bmi = weightKg / (heightM * heightM);
+    String category; String emoji; Color color; String advice; double position;
+    if (bmi < 18.5) { category = 'Underweight'; emoji = '😟'; color = Colors.blue.shade400; advice = 'You need to eat more. Increase calorie intake.'; position = 0.1; }
+    else if (bmi < 25) { category = 'Healthy'; emoji = '😊'; color = Colors.green.shade500; advice = 'Great! Keep maintaining your current lifestyle.'; position = 0.38; }
+    else if (bmi < 30) { category = 'Overweight'; emoji = '😐'; color = Colors.orange.shade500; advice = 'Try reducing calories and increasing activity.'; position = 0.65; }
+    else { category = 'Obese'; emoji = '😔'; color = Colors.red.shade400; advice = 'Please consult a doctor and start a diet plan.'; position = 0.88; }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text('BMI', style: TextStyle(fontSize: 13, color: Colors.black45, fontWeight: FontWeight.w600)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text('$emoji $category', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Text(bmi.toStringAsFixed(1), style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: color)),
+        const SizedBox(height: 12),
+        Stack(children: [
+          Container(
+            height: 10,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(5),
+              gradient: const LinearGradient(colors: [Color(0xFF4FC3F7), Color(0xFF66BB6A), Color(0xFFFFA726), Color(0xFFEF5350)]),
+            ),
+          ),
+          Positioned(
+            left: (MediaQuery.of(context).size.width - 80) * position,
+            top: -2,
+            child: Container(
+              width: 14, height: 14,
+              decoration: BoxDecoration(
+                color: color, shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4)],
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [
+          Text('<18.5', style: TextStyle(fontSize: 9, color: Colors.black38)),
+          Text('18.5-25', style: TextStyle(fontSize: 9, color: Colors.black38)),
+          Text('25-30', style: TextStyle(fontSize: 9, color: Colors.black38)),
+          Text('>30', style: TextStyle(fontSize: 9, color: Colors.black38)),
+        ]),
+        const SizedBox(height: 10),
+        Text(advice, style: const TextStyle(fontSize: 12, color: Colors.black45, height: 1.4)),
+      ]),
+    );
   }
 }
