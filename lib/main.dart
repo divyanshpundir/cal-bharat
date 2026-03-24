@@ -1,3 +1,5 @@
+import 'dart:convert';                          // base64Encode
+import 'package:image_picker/image_picker.dart'; // ImagePicker, ImageSource
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,8 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/nutrition_result.dart';
 import 'services/gemini_vision_service.dart';
-import 'utils/image_picker_compat.dart';
-import 'utils/picked_image.dart';
 import 'web/web_file_picker_stub.dart'
     if (dart.library.html) 'web/web_file_picker.dart' as webpick;
 import 'firebase/firebase_bootstrap.dart';
@@ -929,41 +929,58 @@ _baseFat = result.fat.toInt();
     setState(() => _searchError = 'Not found. Try: dal, roti, paratha, biryani...');
   }
 
-  Future<void> _scanFood() async {
-    setState(() { _error = null; _result = null; _showManualSearch = false; });
-    if (kIsWeb) {
-      final webImage = await webpick.pickImageWithHtmlInput();
-      if (webImage == null) return;
-      setState(() { _webPicked = webImage; _loading = true; });
-    }
-    try {
-      const apiKey = String.fromEnvironment('GROQ_API_KEY');
-      final service = GeminiVisionService(apiKey: apiKey);
-      final res = await service.analyzeFoodImageBase64(
-          base64Image: _webPicked!.base64, mimeType: _webPicked!.mimeType);
-      if (mounted) {
-        setState(() { _result = res; _selectedServing = '1 katori (150g)'; });
-        _populateControllers(res);
-      }
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Could not recognize food. Try manual search.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+Future<void> _scanFood({ImageSource source = ImageSource.gallery}) async {
+  setState(() { _error = null; _result = null; _showManualSearch = false; });
+
+  String base64Image;
+  String mimeType;
+
+  if (kIsWeb) {
+    // ── Web path (existing) ──────────────────────────────
+    final webImage = await webpick.pickImageWithHtmlInput();
+    if (webImage == null) return;
+    setState(() { _webPicked = webImage; _loading = true; });
+    base64Image = webImage.base64;
+    mimeType = webImage.mimeType;
+
+  } else {
+    // ── Mobile path (new) ────────────────────────────────
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,   // or ImageSource.camera
+      imageQuality: 85,              // compress before base64 encoding
+      maxWidth: 1024,                // keep payload size reasonable
+    );
+    if (picked == null) return;      // user cancelled
+
+    final bytes = await picked.readAsBytes();
+    base64Image = base64Encode(bytes);
+    mimeType = 'image/jpeg';
+    setState(() { _loading = true; });
   }
+
+  try {
+    const apiKey = String.fromEnvironment('GROQ_API_KEY');
+    final service = GeminiVisionService(apiKey: apiKey);
+    final res = await service.analyzeFoodImageBase64(
+        base64Image: base64Image,
+        mimeType: mimeType);
+    if (mounted) {
+      setState(() { _result = res; _selectedServing = '1 katori (150g)'; });
+      _populateControllers(res);
+    }
+  } catch (e) {
+    if (mounted) setState(() => _error = 'Could not recognize food. Try manual search.');
+  } finally {
+    if (mounted) setState(() => _loading = false);
+  }
+}
 
   String _greeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
-  }
-
-  String _dayLabel(int index) {
-    final now = DateTime.now();
-    final day = now.subtract(Duration(days: 6 - index));
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return days[day.weekday - 1];
   }
 
   @override
@@ -1240,34 +1257,42 @@ _weightKg > 0 && _heightCm > 0
   const SizedBox(height: 16),
 ],
             // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _ActionButton(
-                    onTap: _loading ? null : _scanFood,
-                    icon: Icons.camera_alt_outlined,
-                    label: 'Scan Food',
-                    emoji: '📸',
-                    isPrimary: true,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _ActionButton(
-                    onTap: () => setState(() {
-                      _showManualSearch = !_showManualSearch;
-                      _result = null;
-                      _error = null;
-                    }),
-                    icon: Icons.search,
-                    label: 'Search',
-                    isPrimary: false,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+Row(children: [
+  Expanded(
+    flex: 2,
+    child: _ActionButton(
+      onTap: _loading ? null : () => _scanFood(source: ImageSource.camera),
+      icon: Icons.camera_alt_outlined,
+      label: 'Camera',
+      emoji: '📸',
+      isPrimary: true,
+    ),
+  ),
+  const SizedBox(width: 10),
+  Expanded(
+    flex: 2,
+    child: _ActionButton(
+      onTap: _loading ? null : () => _scanFood(source: ImageSource.gallery),
+      icon: Icons.photo_library_outlined,
+      label: 'Gallery',
+      emoji: '🖼️',
+      isPrimary: true,
+    ),
+  ),
+  const SizedBox(width: 10),
+  Expanded(
+    child: _ActionButton(
+      onTap: () => setState(() {
+        _showManualSearch = !_showManualSearch;
+        _result = null;
+        _error = null;
+      }),
+      icon: Icons.search,
+      label: 'Search',
+      isPrimary: false,
+    ),
+  ),
+]),
 
             // Manual search
             if (_showManualSearch) ...[
@@ -1779,9 +1804,12 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _calorieGoal = 2000;
-  bool _loading = true;
 
   @override
+   void initState() {
+    super.initState();
+    _loadProfile();
+  }
 
   Future<void> _loadProfile() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1790,7 +1818,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (doc.exists && doc.data()?['calorie_goal'] != null) {
       setState(() => _calorieGoal = doc.data()!['calorie_goal']);
     }
-    setState(() => _loading = false);
   }
 
   Future<void> _updateGoal(int goal) async {
