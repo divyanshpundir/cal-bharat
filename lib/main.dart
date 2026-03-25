@@ -1259,7 +1259,7 @@ _weightKg > 0 && _heightCm > 0
             // Action buttons
 Row(children: [
   Expanded(
-    flex: 2,
+    flex: 3,
     child: _ActionButton(
       onTap: _loading ? null : () => _scanFood(source: ImageSource.camera),
       icon: Icons.camera_alt_outlined,
