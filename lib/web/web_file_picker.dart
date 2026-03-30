@@ -17,10 +17,14 @@ class WebPickedImage {
   final String name;
 }
 
-Future<WebPickedImage?> pickImageWithHtmlInput() async {
+Future<WebPickedImage?> pickImageWithHtmlInput({bool useCamera = false}) async {
   final input = html.FileUploadInputElement()
     ..accept = 'image/*'
     ..multiple = false;
+
+  if (useCamera) {
+    input.setAttribute('capture', 'environment');
+  }
 
   input.style.display = 'none';
   html.document.body?.append(input);
@@ -41,29 +45,20 @@ Future<WebPickedImage?> pickImageWithHtmlInput() async {
       throw Exception('Could not read image as data URL.');
     }
 
-    // Example: data:image/png;base64,AAAA...
     final comma = result.indexOf(',');
-    if (comma == -1) {
-      throw Exception('Invalid data URL returned by browser.');
-    }
+    if (comma == -1) throw Exception('Invalid data URL returned by browser.');
 
-    final meta = result.substring(0, comma); // data:image/png;base64
+    final meta = result.substring(0, comma);
     final base64 = result.substring(comma + 1);
-
     final mime = _mimeFromDataUrlMeta(meta) ?? (file.type.isNotEmpty ? file.type : 'image/jpeg');
-    return WebPickedImage(
-      dataUrl: result,
-      base64: base64,
-      mimeType: mime,
-      name: file.name,
-    );
+
+    return WebPickedImage(dataUrl: result, base64: base64, mimeType: mime, name: file.name);
   } finally {
     input.remove();
   }
 }
 
 String? _mimeFromDataUrlMeta(String meta) {
-  // meta: data:image/png;base64
   if (!meta.startsWith('data:')) return null;
   final withoutPrefix = meta.substring('data:'.length);
   final semi = withoutPrefix.indexOf(';');
@@ -71,4 +66,3 @@ String? _mimeFromDataUrlMeta(String meta) {
   final mime = withoutPrefix.substring(0, semi);
   return mime.isEmpty ? null : mime;
 }
-

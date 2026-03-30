@@ -937,7 +937,7 @@ Future<void> _scanFood({ImageSource source = ImageSource.gallery}) async {
 
   if (kIsWeb) {
     // ── Web path (existing) ──────────────────────────────
-    final webImage = await webpick.pickImageWithHtmlInput();
+   final webImage = await webpick.pickImageWithHtmlInput(useCamera: source == ImageSource.camera);
     if (webImage == null) return;
     setState(() { _webPicked = webImage; _loading = true; });
     base64Image = webImage.base64;
@@ -947,7 +947,7 @@ Future<void> _scanFood({ImageSource source = ImageSource.gallery}) async {
     // ── Mobile path (new) ────────────────────────────────
     final picker = ImagePicker();
     final picked = await picker.pickImage(
-      source: ImageSource.gallery,   // or ImageSource.camera
+      source: source,
       imageQuality: 85,              // compress before base64 encoding
       maxWidth: 1024,                // keep payload size reasonable
     );
@@ -1258,40 +1258,41 @@ _weightKg > 0 && _heightCm > 0
 ],
             // Action buttons
 Row(children: [
-  Expanded(
-    flex: 3,
-    child: _ActionButton(
-      onTap: _loading ? null : () => _scanFood(source: ImageSource.camera),
-      icon: Icons.camera_alt_outlined,
-      label: 'Camera',
-      emoji: '📸',
-      isPrimary: true,
-    ),
+ Expanded(
+  flex: 2,
+  child: _ActionButton(
+    onTap: _loading ? null : () => _scanFood(source: ImageSource.camera),
+    icon: Icons.camera_alt_outlined,
+    label: 'Camera',
+    emoji: '📸',
+    isPrimary: true,
   ),
-  const SizedBox(width: 10),
-  Expanded(
-    flex: 2,
-    child: _ActionButton(
-      onTap: _loading ? null : () => _scanFood(source: ImageSource.gallery),
-      icon: Icons.photo_library_outlined,
-      label: 'Gallery',
-      emoji: '🖼️',
-      isPrimary: true,
-    ),
+),
+const SizedBox(width: 10),
+Expanded(
+  flex: 2,
+  child: _ActionButton(
+    onTap: _loading ? null : () => _scanFood(source: ImageSource.gallery),
+    icon: Icons.photo_library_outlined,
+    label: 'Gallery',
+    emoji: '🖼️',
+    isPrimary: true,
   ),
-  const SizedBox(width: 10),
-  Expanded(
-    child: _ActionButton(
-      onTap: () => setState(() {
-        _showManualSearch = !_showManualSearch;
-        _result = null;
-        _error = null;
-      }),
-      icon: Icons.search,
-      label: 'Search',
-      isPrimary: false,
-    ),
+),
+const SizedBox(width: 10),
+Expanded(
+  flex: 1,
+  child: _ActionButton(
+    onTap: () => setState(() {
+      _showManualSearch = !_showManualSearch;
+      _result = null;
+      _error = null;
+    }),
+    icon: Icons.search,
+    label: 'Search',
+    isPrimary: false,
   ),
+),
 ]),
 
             // Manual search

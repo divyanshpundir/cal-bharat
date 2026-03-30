@@ -12,7 +12,6 @@ class WebPickedImage {
   final String name;
 }
 
-Future<WebPickedImage?> pickImageWithHtmlInput() async {
-  throw UnsupportedError('HTML file input is only available on web.');
+Future<WebPickedImage?> pickImageWithHtmlInput({bool useCamera = false}) async {
+  return null;
 }
-
