@@ -1613,77 +1613,131 @@ class LogScreen extends StatefulWidget {
 }
 
 class _LogScreenState extends State<LogScreen> {
+  DateTime _selectedDate = DateTime.now();
+  int _rangeDays = 7; // 7, 15, or 30
+
+  DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime _endOfDay(DateTime d) => DateTime(d.year, d.month, d.day, 23, 59, 59);
+
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final now = DateTime.now();
-    final startOfDay = Timestamp.fromDate(DateTime(now.year, now.month, now.day));
-    final endOfDay = Timestamp.fromDate(DateTime(now.year, now.month, now.day, 23, 59, 59));
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Meal Log',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          const Text("Today's meals",
-              style: TextStyle(color: Colors.black38, fontSize: 13, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 16),
-          Expanded(
-            child: uid == null
-                ? const Center(child: Text('Not logged in'))
-                : StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('meals')
-                        .where('user_id', isEqualTo: uid)
-                        .where('logged_at', isGreaterThanOrEqualTo: startOfDay)
-                        .where('logged_at', isLessThanOrEqualTo: endOfDay)
-                        .orderBy('logged_at', descending: false)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('⚠️', style: TextStyle(fontSize: 40)),
-                              const SizedBox(height: 8),
-                              Text('Error: ${snapshot.error}',
-                                  style: const TextStyle(color: Colors.black38, fontSize: 12),
-                                  textAlign: TextAlign.center),
-                            ],
-                          ),
-                        );
-                      }
-                      final docs = snapshot.data?.docs ?? [];
-                      if (docs.isEmpty) {
-                        return Center(child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Text('🍽️', style: TextStyle(fontSize: 56)),
-                            SizedBox(height: 12),
-                            Text('No meals logged today',
-                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black54)),
-                            SizedBox(height: 6),
-                            Text('Scan your food to get started',
-                                style: TextStyle(color: Colors.black38, fontSize: 13)),
-                          ],
-                        ));
-                      }
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('Meal Log', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+            Row(children: [
+              _RangeChip(label: '7D', value: 7, selected: _rangeDays, onTap: () => setState(() => _rangeDays = 7)),
+              const SizedBox(width: 6),
+              _RangeChip(label: '15D', value: 15, selected: _rangeDays, onTap: () => setState(() => _rangeDays = 15)),
+              const SizedBox(width: 6),
+              _RangeChip(label: '1M', value: 30, selected: _rangeDays, onTap: () => setState(() => _rangeDays = 30)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 12),
 
-                      int totalCal = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
-                      for (final doc in docs) {
-                        final d = doc.data() as Map<String, dynamic>;
-                        totalCal += (d['calories'] as num? ?? 0).toInt();
-                        totalProtein += (d['protein'] as num? ?? 0).toInt();
-                        totalCarbs += (d['carbs'] as num? ?? 0).toInt();
-                        totalFat += (d['fat'] as num? ?? 0).toInt();
-                      }
+        // Horizontal date selector
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _rangeDays,
+            itemBuilder: (context, i) {
+              final day = now.subtract(Duration(days: _rangeDays - 1 - i));
+              final isSelected = _startOfDay(day) == _startOfDay(_selectedDate);
+              const days = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+              final dayLabel = days[day.weekday - 1];
+              return GestureDetector(
+                onTap: () => setState(() => _selectedDate = day),
+                child: Container(
+                  width: 52,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFFF7A00) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8)],
+                  ),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(dayLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isSelected ? Colors.white.withValues(alpha: 0.8) : Colors.black38)),
+                    const SizedBox(height: 4),
+                    Text('${day.day}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isSelected ? Colors.white : Colors.black87)),
+                    const SizedBox(height: 2),
+                    if (isSelected)
+                      Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
 
-                      return Column(children: [
+        // Meal list for selected day
+        Expanded(
+          child: uid == null
+              ? const Center(child: Text('Not logged in'))
+              : StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('meals')
+                      .where('user_id', isEqualTo: uid)
+                      .where('logged_at', isGreaterThanOrEqualTo: Timestamp.fromDate(_startOfDay(_selectedDate)))
+                      .where('logged_at', isLessThanOrEqualTo: Timestamp.fromDate(_endOfDay(_selectedDate)))
+                      .orderBy('logged_at', descending: false)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.black38, fontSize: 12)));
+                    }
+                    final docs = snapshot.data?.docs ?? [];
+
+                    final now2 = DateTime.now();
+                    String dateLabel;
+                    if (_startOfDay(_selectedDate) == _startOfDay(now2)) {
+                      dateLabel = "Today's meals";
+                    } else if (_startOfDay(_selectedDate) == _startOfDay(now2.subtract(const Duration(days: 1)))) {
+                      dateLabel = "Yesterday's meals";
+                    } else {
+                      dateLabel = "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year} meals";
+                    }
+
+                    if (docs.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                        child: Column(children: [
+                          Align(alignment: Alignment.centerLeft, child: Text(dateLabel, style: const TextStyle(color: Colors.black38, fontSize: 13, fontWeight: FontWeight.w500))),
+                          const SizedBox(height: 60),
+                          const Text('🍽️', style: TextStyle(fontSize: 56)),
+                          const SizedBox(height: 12),
+                          const Text('No meals logged', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black54)),
+                          const SizedBox(height: 6),
+                          const Text('Scan your food to get started', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                        ]),
+                      );
+                    }
+
+                    int totalCal = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
+                    for (final doc in docs) {
+                      final d = doc.data() as Map<String, dynamic>;
+                      totalCal += (d['calories'] as num? ?? 0).toInt();
+                      totalProtein += (d['protein'] as num? ?? 0).toInt();
+                      totalCarbs += (d['carbs'] as num? ?? 0).toInt();
+                      totalFat += (d['fat'] as num? ?? 0).toInt();
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(dateLabel, style: const TextStyle(color: Colors.black38, fontSize: 13, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -1693,10 +1747,8 @@ class _LogScreenState extends State<LogScreen> {
                           ),
                           child: Column(children: [
                             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                              const Text('Total today',
-                                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black45, fontSize: 13)),
-                              Text('$totalCal kcal',
-                                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Color(0xFFFF7A00))),
+                              const Text('Total', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black45, fontSize: 13)),
+                              Text('$totalCal kcal', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Color(0xFFFF7A00))),
                             ]),
                             const SizedBox(height: 12),
                             Row(children: [
@@ -1722,10 +1774,7 @@ class _LogScreenState extends State<LogScreen> {
                                 background: Container(
                                   alignment: Alignment.centerRight,
                                   padding: const EdgeInsets.only(right: 16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.shade400,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
+                                  decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(16)),
                                   child: const Icon(Icons.delete_outline, color: Colors.white),
                                 ),
                                 onDismissed: (_) async {
@@ -1741,25 +1790,17 @@ class _LogScreenState extends State<LogScreen> {
                                   child: Row(children: [
                                     Container(
                                       width: 44, height: 44,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFF7A00).withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
+                                      decoration: BoxDecoration(color: const Color(0xFFFF7A00).withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
                                       child: const Icon(Icons.restaurant_outlined, color: Color(0xFFFF7A00), size: 20),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Text(data['dish_name'] ?? '',
-                                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                                      Text(data['dish_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                                       const SizedBox(height: 2),
-                                      Text(
-                                        serving.isNotEmpty ? '$time • $serving' : time,
-                                        style: const TextStyle(color: Colors.black38, fontSize: 12),
-                                      ),
+                                      Text(serving.isNotEmpty ? '$time • $serving' : time, style: const TextStyle(color: Colors.black38, fontSize: 12)),
                                     ])),
                                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                      Text('${data['calories']}',
-                                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFFFF7A00))),
+                                      Text('${data['calories']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFFFF7A00))),
                                       const Text('kcal', style: TextStyle(color: Colors.black38, fontSize: 11)),
                                     ]),
                                   ]),
@@ -1768,15 +1809,42 @@ class _LogScreenState extends State<LogScreen> {
                             },
                           ),
                         ),
-                      ]);
-                    },
-                  ),
-          ),
-        ]),
+                      ]),
+                    );
+                  },
+                ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _RangeChip extends StatelessWidget {
+  const _RangeChip({required this.label, required this.value, required this.selected, required this.onTap});
+  final String label;
+  final int value;
+  final int selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = value == selected;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFF7A00) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+        ),
+        child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isSelected ? Colors.white : Colors.black45)),
       ),
     );
   }
 }
+
+
 
 class _LogMacro extends StatelessWidget {
   const _LogMacro({required this.label, required this.value, required this.color});
