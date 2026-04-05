@@ -2773,7 +2773,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       final response = await http.post(
         Uri.parse('https://cal-bharat-api.rana-yash9876.workers.dev/create-order'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'amount': 99, 'currency': 'INR', 'receipt': 'sub_$uid'}),
+        body: jsonEncode({'amount': 99, 'currency': 'INR', 'receipt': 'sub_$uid', 'uid': uid}),
       );
 
       final order = jsonDecode(response.body);
