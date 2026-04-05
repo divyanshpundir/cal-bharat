@@ -1,3 +1,5 @@
+import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';                          // base64Encode
 import 'package:image_picker/image_picker.dart'; // ImagePicker, ImageSource
 import 'package:flutter/material.dart';
@@ -1844,8 +1846,6 @@ class _RangeChip extends StatelessWidget {
   }
 }
 
-
-
 class _LogMacro extends StatelessWidget {
   const _LogMacro({required this.label, required this.value, required this.color});
   final String label;
@@ -2138,6 +2138,22 @@ Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
   )),
 ]),
 const SizedBox(height: 24),
+SizedBox(
+  width: double.infinity,
+  height: 52,
+  child: ElevatedButton.icon(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFFFF7A00),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 0,
+    ),
+    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionScreen())),
+    icon: const Icon(Icons.star, size: 18),
+    label: const Text('Upgrade to Premium 🌟', style: TextStyle(fontWeight: FontWeight.w700)),
+  ),
+),
+const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -2716,6 +2732,194 @@ class _BMICard extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         Text(advice, style: const TextStyle(fontSize: 12, color: Colors.black45, height: 1.4)),
+      ]),
+    );
+  }
+  }
+// ─── SUBSCRIPTION SCREEN ───────────────────────────────────────────────────────
+
+class SubscriptionScreen extends StatefulWidget {
+  const SubscriptionScreen({super.key});
+  @override
+  State<SubscriptionScreen> createState() => _SubscriptionScreenState();
+}
+
+class _SubscriptionScreenState extends State<SubscriptionScreen> {
+  bool _loading = false;
+  bool _isPremium = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPremium();
+  }
+
+  Future<void> _checkPremium() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    if (doc.exists && doc.data()?['is_premium'] == true) {
+      setState(() => _isPremium = true);
+    }
+  }
+
+  Future<void> _startPayment() async {
+    setState(() => _loading = true);
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      // Create order
+      final response = await http.post(
+        Uri.parse('https://cal-bharat-api.rana-yash9876.workers.dev/create-order'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'amount': 99, 'currency': 'INR', 'receipt': 'sub_$uid'}),
+      );
+
+      final order = jsonDecode(response.body);
+      if (order['id'] == null) throw Exception('Order creation failed');
+
+      // Open Razorpay checkout in browser
+      final checkoutUrl = 'https://rzp.io/rzp/gVDoUec';
+      if (await canLaunchUrl(Uri.parse(checkoutUrl))) {
+        await launchUrl(Uri.parse(checkoutUrl), mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black54),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF7A00),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(children: [
+              const Text('🌟', style: TextStyle(fontSize: 48)),
+              const SizedBox(height: 12),
+              const Text('Cal भारत Premium',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white)),
+              const SizedBox(height: 8),
+              const Text('Unlock your full health potential',
+                  style: TextStyle(fontSize: 14, color: Colors.white70)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text('₹99 / month',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 24),
+
+          // Features
+          _FeatureRow(icon: '📸', title: 'Unlimited AI scans', subtitle: 'Scan as many meals as you want'),
+          _FeatureRow(icon: '📊', title: 'Advanced analytics', subtitle: 'Weekly and monthly reports'),
+          _FeatureRow(icon: '🎯', title: 'Personalized goals', subtitle: 'Custom calorie targets based on your body'),
+          _FeatureRow(icon: '🍛', title: '300+ Indian dishes', subtitle: 'Full access to entire food database'),
+          _FeatureRow(icon: '💪', title: 'BMI & health tracking', subtitle: 'Track your fitness journey'),
+          _FeatureRow(icon: '🔔', title: 'Meal reminders', subtitle: 'Never miss tracking a meal — coming soon'),
+          const SizedBox(height: 24),
+
+          if (_isPremium) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(children: [
+                Icon(Icons.check_circle, color: Colors.green.shade600, size: 28),
+                const SizedBox(width: 12),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('You are Premium! 🎉', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.green.shade700)),
+                  Text('Enjoy all premium features', style: TextStyle(color: Colors.green.shade600, fontSize: 13)),
+                ]),
+              ]),
+            ),
+          ] else ...[
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF7A00),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                  textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                onPressed: _loading ? null : _startPayment,
+                child: _loading
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Get Premium 🚀'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('Cancel anytime • Secure payment via Razorpay',
+                style: TextStyle(fontSize: 12, color: Colors.black38),
+                textAlign: TextAlign.center),
+          ],
+          const SizedBox(height: 32),
+        ]),
+      ),
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  const _FeatureRow({required this.icon, required this.title, required this.subtitle});
+  final String icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF7A00).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(child: Text(icon, style: const TextStyle(fontSize: 20))),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          Text(subtitle, style: const TextStyle(color: Colors.black38, fontSize: 13)),
+        ])),
+        Icon(Icons.check_circle, color: Colors.green.shade400, size: 20),
       ]),
     );
   }
